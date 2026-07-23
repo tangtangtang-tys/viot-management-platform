@@ -80,6 +80,45 @@ const machines = [
   ["m20", "23.102.209", "-", "-", "23.102.209", img.blue, "开发中"],
 ].map(([id, name, network, power, firmware, image, status]) => ({ id, name, network, power, firmware, image, status, line: "IPC", arch: "新架构", description: "-" }));
 
+function mockFirmwareRelation(id, machineId, firmwareIdentifier, firmwareVersion, linkedAt) {
+  return { id, machineId, firmwareIdentifier, firmwareVersion, linkedAt, source: "固件发布系统" };
+}
+
+const initialFirmwareRelations = {
+  "f1-v2": [
+    mockFirmwareRelation("rel-f1-v2-01", "m8", "23.210.211", "2.6.18", "2026-07-15 15:18:20"),
+    mockFirmwareRelation("rel-f1-v2-02", "m8", "23.210.211", "2.6.17", "2026-07-14 17:42:06"),
+    mockFirmwareRelation("rel-f1-v2-03", "m3", "23.210.111.306", "3.0.6", "2026-07-13 11:25:32"),
+    mockFirmwareRelation("rel-f1-v2-04", "m1", "23.110.200", "5.12.1", "2026-07-12 09:36:18"),
+    mockFirmwareRelation("rel-f1-v2-05", "m2", "23.230.111", "2.3.1", "2026-07-11 16:08:45"),
+  ],
+  "f1-v1": [
+    mockFirmwareRelation("rel-f1-v1-01", "m1", "23.110.200", "5.8.6", "2026-05-17 14:20:16"),
+  ],
+  "f2-v1": [
+    mockFirmwareRelation("rel-f2-v1-01", "m4", "99.789.24", "2.6.18", "2026-07-22 16:42:18"),
+    mockFirmwareRelation("rel-f2-v1-02", "m4", "99.789.24", "2.6.17", "2026-07-22 14:26:03"),
+    mockFirmwareRelation("rel-f2-v1-03", "m4", "99.789.24", "2.6.15", "2026-07-21 18:05:47"),
+    mockFirmwareRelation("rel-f2-v1-04", "m8", "23.210.211", "1.4.2", "2026-07-21 15:32:26"),
+    mockFirmwareRelation("rel-f2-v1-05", "m8", "23.210.211", "1.4.1", "2026-07-21 11:18:52"),
+    mockFirmwareRelation("rel-f2-v1-06", "m8", "23.210.211", "1.3.9", "2026-07-20 17:46:10"),
+    mockFirmwareRelation("rel-f2-v1-07", "m3", "23.210.111.306", "3.0.6", "2026-07-20 13:22:45"),
+    mockFirmwareRelation("rel-f2-v1-08", "m3", "23.210.111.306", "3.0.5", "2026-07-20 10:08:19"),
+    mockFirmwareRelation("rel-f2-v1-09", "m3", "23.210.111.306", "3.0.3", "2026-07-19 16:36:08"),
+    mockFirmwareRelation("rel-f2-v1-10", "m1", "23.110.200", "5.12.1", "2026-07-19 14:12:37"),
+    mockFirmwareRelation("rel-f2-v1-11", "m1", "23.110.200", "5.11.8", "2026-07-19 10:24:51"),
+    mockFirmwareRelation("rel-f2-v1-12", "m2", "23.230.111", "2.3.1", "2026-07-18 17:08:29"),
+    mockFirmwareRelation("rel-f2-v1-13", "m2", "23.230.111", "2.3.0", "2026-07-18 15:42:14"),
+    mockFirmwareRelation("rel-f2-v1-14", "m9", "99.789.23", "1.8.4", "2026-07-18 11:26:53"),
+  ],
+  "f3-v2": [
+    mockFirmwareRelation("rel-f3-v2-01", "m2", "23.230.111", "2.3.1", "2026-06-25 14:18:09"),
+    mockFirmwareRelation("rel-f3-v2-02", "m2", "23.230.111", "2.3.0", "2026-06-24 16:42:35"),
+  ],
+  "f5-v1": [mockFirmwareRelation("rel-f5-v1-01", "m13", "10.80.120", "3.8.12", "2026-05-31 16:20:45")],
+  "f7-v1": [mockFirmwareRelation("rel-f7-v1-01", "m18", "5.60.210", "1.2.0", "2026-07-01 14:08:32")],
+};
+
 const productLines = ["IPC", "NVR", "车载", "BK", "AI玩具", "婴儿看护"];
 const GLOBAL_PRODUCT_LINE = "全部产品线";
 const functionCategories = ["图像设置", "智能分析", "音频设置", "存储管理", "时间同步", "视频设置", "设备信息", "设备控制", "P2P"];
@@ -99,10 +138,46 @@ function functionVersion(id, number, status, refs, options = {}) {
     baseVersionId: options.baseVersionId || "",
     copiedFrom: options.copiedFrom || null,
     firmwareVersions: options.firmwareVersions || [],
+    firmwareRelations: options.firmwareRelations || null,
     firmwareRelationHistory: options.firmwareRelationHistory || [],
     publishedSnapshot: options.publishedSnapshot || null,
   };
 }
+
+function definedFunctionMock(id, name, identifier, category, remark, image, createdAt) {
+  return {
+    id,
+    name,
+    identifier,
+    productLine: "IPC",
+    category,
+    image,
+    remark,
+    createdAt,
+    versions: [functionVersion(id, 1, "草稿", 0, {
+      createdAt,
+      changelog: `${name}首版能力定义`,
+    })],
+  };
+}
+
+const definedFunctionMocks = [
+  definedFunctionMock("defined-remote-photo", "远程拍照功能", "remote_photo", "图像设置", "支持小龙虾远程拍照功能，第一版仅支持国内单目设备", img.camera, "2026-07-01 10:18:20"),
+  definedFunctionMock("defined-ota-upgrade", "OTA升级功能", "ota_upgrade", "设备控制", "通过无线通信网络远程为设备更新软件、固件或系统版本的功能。", img.blue, "2026-07-02 11:26:35"),
+  definedFunctionMock("defined-network-type", "网络类型", "networkType", "设备信息", "网络类型 1:仅wifi 2:仅4G 3:wifi+4G 4:网线+4G 5:网线+WIFI 6:仅网线", img.goose, "2026-07-03 14:08:12"),
+  definedFunctionMock("defined-base-cloud", "基础云存子码流支持", "supportBaseCloud", "存储管理", "是否支持基础云存子码流 0:不支持 1:支持", img.camera, "2026-07-04 09:42:18"),
+  definedFunctionMock("defined-split-screen", "枪机分屏支持", "splitScreen", "视频设置", "是否支持枪机分屏 0:不支持 1:支持", img.blue, "2026-07-05 16:30:42"),
+  definedFunctionMock("defined-camera-lenses", "镜头数量", "cameraLenses", "设备信息", "镜头数量 0:无摄像头 1:一目 2:双目 3:三目 依次类推", img.goose, "2026-07-06 10:12:09"),
+  definedFunctionMock("defined-low-power", "低功耗唤醒支持", "supportsLowPower", "设备控制", "是否支持低功耗唤醒 0:不支持 1:支持", img.camera, "2026-07-07 13:48:26"),
+  definedFunctionMock("defined-sensor-num", "四摄远近焦标识", "devSensorNum", "设备信息", "四摄支持远近焦 -1:无该字段 2:有两个枪球需分割镜头", img.blue, "2026-07-08 15:22:14"),
+  definedFunctionMock("defined-add-code", "新添加方式", "add_code", "设备信息", "添加方式 1:长电WIFI 2:长电4G 3:低功耗 4:宠物", img.goose, "2026-07-09 11:05:38"),
+  definedFunctionMock("defined-have-motor", "电机信息", "haveMotor", "设备信息", "电机信息 0:无电机 1:水平+垂直电机 2:仅垂直电机 3:仅水平电机", img.camera, "2026-07-10 17:16:50"),
+  definedFunctionMock("defined-connect-type", "连接类型", "connectType", "设备信息", "连接类型 1:IPC MQTT 2:车载TCP 3:BK TCP 4:NVR MQTT 5:宠物MQTT 6:新TCP 7:老TCP", img.blue, "2026-07-11 09:36:44"),
+  definedFunctionMock("defined-4g-reporting", "4G基站上报支持", "supports4GCellReporting", "设备信息", "是否支持4G基站上报 0:不支持 1:支持", img.goose, "2026-07-12 14:27:31"),
+  definedFunctionMock("defined-self-p2p", "自研P2P功能", "supportsSelfDevelopedP2P", "P2P", "是否支持自研P2P 0:不支持 1:支持", img.camera, "2026-07-13 10:48:06"),
+  definedFunctionMock("defined-nexus-log", "实时日志功能", "nexusLog", "设备信息", "是否支持实时日志 0:不支持 1:支持", img.blue, "2026-07-14 16:02:57"),
+  definedFunctionMock("defined-framework-type", "架构类型", "frameworkType", "设备信息", "架构类型 0:原架构 1:新架构", img.goose, "2026-07-15 11:40:22"),
+];
 
 const functions = [
   {
@@ -116,7 +191,7 @@ const functions = [
   {
     id: "f2", name: "夜视模式", identifier: "night_vision", productLine: "IPC", category: "图像设置", image: img.goose,
     remark: "自动或手动切换日夜成像模式", createdAt: "2026-06-03 09:32:18",
-    versions: [functionVersion("f2", 1, "测试中", 0, { changelog: "验证红外切换与画面恢复", firmwareVersions: ["99.789.24", "23.210.211"] })],
+    versions: [functionVersion("f2", 1, "已发布", 0, { publishedAt: "2026-07-18 10:20:05", changelog: "验证红外切换与画面恢复", firmwareVersions: ["99.789.24", "23.210.211"] })],
   },
   {
     id: "f3", name: "云台控制", identifier: "ptz_control", productLine: "IPC", category: "设备控制", image: img.blue,
@@ -129,7 +204,7 @@ const functions = [
   {
     id: "f4", name: "设备重启", identifier: "device_restart", productLine: "IPC", category: "设备控制", image: img.camera,
     remark: "支持云端下发设备重启服务", createdAt: "2026-03-08 11:26:50",
-    versions: [functionVersion("f4", 1, "测试中", 0, { changelog: "支持云端安全重启与状态回执", firmwareVersions: ["23.210.211"] })],
+    versions: [functionVersion("f4", 1, "测试中", 0, { changelog: "支持云端安全重启与状态回执" })],
   },
   {
     id: "f5", name: "录像回放", identifier: "record_playback", productLine: "NVR", category: "存储管理", image: img.blue,
@@ -151,6 +226,7 @@ const functions = [
     remark: "识别婴儿哭声并向家长端推送提醒", createdAt: "2026-06-28 09:10:20",
     versions: [functionVersion("f8", 1, "测试中", 0, { changelog: "增加不同环境噪声下的哭声识别" })],
   },
+  ...definedFunctionMocks,
 ];
 
 function createMockModelSpec(functionId, index = 0) {
@@ -244,6 +320,8 @@ const state = {
   functionDraftImage: "",
   machineDraftImage: "",
   modelTab: "model",
+  functionReferenceSearch: "",
+  functionReferencePage: 1,
   modelSpecs: initialModelSpecs,
 };
 
@@ -598,7 +676,7 @@ function functionPage() {
   const navLines = [GLOBAL_PRODUCT_LINE, ...productLines];
   const overview = isGlobal
     ? `<div><span class="overview-label">全局功能视图</span><h2>全部产品线</h2><p>跨产品线检索已有能力，查看覆盖情况并复用到目标产品线。</p></div><dl><div><dt>功能族</dt><dd>${allFamilies.length}</dd></div><div><dt>产线实例</dt><dd>${functions.length}</dd></div><div><dt>已发布</dt><dd>${publishedCount}</dd></div></dl>`
-    : `<div><span class="overview-label">当前产品线</span><h2>${escapeHtml(line)}</h2><p>功能按版本完成配置、测试和发布，机型只引用明确的已发布版本。</p></div><dl><div><dt>功能项</dt><dd>${lineFunctions.length}</dd></div><div><dt>已发布</dt><dd>${publishedCount}</dd></div><div><dt>待推进</dt><dd>${testingCount}</dd></div></dl>`;
+    : `<div><span class="overview-label">当前产品线</span><h2>${escapeHtml(line)}</h2><p>功能按版本完成配置、测试和发布；发布后可由固件发布配置选择。</p></div><dl><div><dt>功能项</dt><dd>${lineFunctions.length}</dd></div><div><dt>已发布</dt><dd>${publishedCount}</dd></div><div><dt>待推进</dt><dd>${testingCount}</dd></div></dl>`;
   return `<section class="surface function-layout">
     <aside class="product-line-panel"><div class="category-panel-head"><span>产品线</span></div><ul class="product-line-list">${navLines.map((name) => { const count = name === GLOBAL_PRODUCT_LINE ? globalNavCount : functions.filter((item) => item.productLine === name).length; return `<li><button class="${name === line ? "active" : ""}" data-action="function-line-select" data-line="${name}"><span>${name}</span><strong>${count}</strong></button></li>`; }).join("")}</ul></aside>
     <div class="function-main">
@@ -613,14 +691,14 @@ function functionPage() {
 function globalFunctionCollectionView(groups) {
   if (!groups.length) return `<div class="function-view-empty"><div class="empty-state">暂无符合条件的全局功能</div></div>`;
   if (state.functionViewMode === "card") return `<div class="function-card-grid">${groups.map(globalFunctionCard).join("")}</div>`;
-  return `<div class="data-table-wrap"><table class="data-table global-function-table"><thead><tr><th>全局功能</th><th>功能分类</th><th>已覆盖产品线</th><th>覆盖情况</th><th>引用机型</th><th>操作</th></tr></thead><tbody>${groups.map(globalFunctionRow).join("")}</tbody></table></div>`;
+  return `<div class="data-table-wrap"><table class="data-table global-function-table"><thead><tr><th>全局功能</th><th>功能分类</th><th>已覆盖产品线</th><th>覆盖情况</th><th>关联固件</th><th>操作</th></tr></thead><tbody>${groups.map(globalFunctionRow).join("")}</tbody></table></div>`;
 }
 
 function globalFunctionRow(group) {
   const primary = functionFamilySource(group);
-  const refs = group.items.reduce((sum, item) => sum + item.versions.reduce((versionSum, version) => versionSum + functionVersionReferenceCount(item, version), 0), 0);
+  const firmwareCount = group.items.reduce((sum, item) => sum + item.versions.reduce((versionSum, version) => versionSum + functionFirmwareRelations(version).length, 0), 0);
   const source = group.items.find((item) => latestPublishedVersion(item) && availableTargetLines(item).length) || null;
-  return `<tr><td><button class="function-name-cell" data-action="function-global-detail" data-capability="${escapeHtml(group.capabilityId)}"><img src="${primary.image}" alt=""><span><strong>${escapeHtml(primary.name)}</strong><code>${escapeHtml(primary.identifier)}</code></span></button></td><td>${escapeHtml(primary.category)}</td><td><div class="global-line-chips">${functionFamilyLineChips(group)}</div></td><td><strong>${group.items.length}/${productLines.length}</strong></td><td>${refs}</td><td><button class="btn btn-text" data-action="function-global-detail" data-capability="${escapeHtml(group.capabilityId)}">查看</button>${source ? `<button class="btn btn-text" data-action="function-copy-crossline" data-id="${source.id}" data-version="${latestPublishedVersion(source).id}">跨线复制</button>` : ""}</td></tr>`;
+  return `<tr><td><button class="function-name-cell" data-action="function-global-detail" data-capability="${escapeHtml(group.capabilityId)}"><img src="${primary.image}" alt=""><span><strong>${escapeHtml(primary.name)}</strong><code>${escapeHtml(primary.identifier)}</code></span></button></td><td>${escapeHtml(primary.category)}</td><td><div class="global-line-chips">${functionFamilyLineChips(group)}</div></td><td><strong>${group.items.length}/${productLines.length}</strong></td><td>${firmwareCount}</td><td><button class="btn btn-text" data-action="function-global-detail" data-capability="${escapeHtml(group.capabilityId)}">查看</button>${source ? `<button class="btn btn-text" data-action="function-copy-crossline" data-id="${source.id}" data-version="${latestPublishedVersion(source).id}">跨线复制</button>` : ""}</td></tr>`;
 }
 
 function globalFunctionCard(group) {
@@ -637,20 +715,20 @@ function globalFunctionCard(group) {
 function functionCollectionView(rows) {
   if (!rows.length) return `<div class="function-view-empty"><div class="empty-state">暂无符合条件的功能项</div></div>`;
   if (state.functionViewMode === "card") return `<div class="function-card-grid">${rows.map(functionManagementCard).join("")}</div>`;
-  return `<div class="data-table-wrap"><table class="data-table function-table"><thead><tr><th>功能项</th><th>功能分类</th><th>最新发布</th><th>当前工作版本</th><th>状态</th><th>引用机型</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${rows.map(functionRow).join("")}</tbody></table></div>`;
+  return `<div class="data-table-wrap"><table class="data-table function-table"><thead><tr><th>功能项</th><th>功能分类</th><th>最新发布</th><th>当前工作版本</th><th>状态</th><th>关联固件</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${rows.map(functionRow).join("")}</tbody></table></div>`;
 }
 
 function functionManagementCard(item) {
   const published = latestPublishedVersion(item);
   const working = item.versions.find((version) => ["草稿", "测试中"].includes(version.status));
   const primary = working || published || item.versions[0];
-  const refs = item.versions.reduce((sum, version) => sum + functionVersionReferenceCount(item, version), 0);
+  const firmwareCount = item.versions.reduce((sum, version) => sum + functionFirmwareRelations(version).length, 0);
   const updatedAt = primary.publishedAt || primary.createdAt || item.createdAt;
   return `<article class="function-management-card">
     <div class="function-management-card-head"><button class="function-card-open" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><code>${escapeHtml(item.identifier)}</code></span></button>${functionStatusTag(primary.status)}</div>
     <p>${escapeHtml(item.remark || "-")}</p>
     <span class="function-category-chip">${escapeHtml(item.category)}</span>
-    <dl class="function-card-metrics"><div><dt>最新发布</dt><dd>${published?.label || "-"}</dd></div><div><dt>工作版本</dt><dd>${working?.label || "-"}</dd></div><div><dt>引用机型</dt><dd>${refs}</dd></div></dl>
+    <dl class="function-card-metrics"><div><dt>最新发布</dt><dd>${published?.label || "-"}</dd></div><div><dt>工作版本</dt><dd>${working?.label || "-"}</dd></div><div><dt>关联固件</dt><dd>${firmwareCount}</dd></div></dl>
     <div class="function-management-card-foot"><span>更新于 ${escapeHtml(updatedAt)}</span><div><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">详情</button>${!working && published ? `<button class="btn btn-text" data-action="function-create-version" data-id="${item.id}">新版本</button>` : ""}</div></div>
   </article>`;
 }
@@ -659,28 +737,12 @@ function functionRow(item) {
   const published = latestPublishedVersion(item);
   const working = item.versions.find((version) => ["草稿", "测试中"].includes(version.status));
   const primary = working || published || item.versions[0];
-  const refs = item.versions.reduce((sum, version) => sum + functionVersionReferenceCount(item, version), 0);
-  return `<tr><td><button class="function-name-cell" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><code>${escapeHtml(item.identifier)}</code></span></button></td><td>${escapeHtml(item.category)}</td><td>${published?.label || "-"}</td><td>${working?.label || "-"}</td><td>${functionStatusTag(primary.status)}</td><td>${refs}</td><td>${escapeHtml(primary.publishedAt || primary.createdAt || item.createdAt)}</td><td><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">详情</button>${!working && published ? `<button class="btn btn-text" data-action="function-create-version" data-id="${item.id}">新版本</button>` : ""}</td></tr>`;
+  const firmwareCount = item.versions.reduce((sum, version) => sum + functionFirmwareRelations(version).length, 0);
+  return `<tr><td><button class="function-name-cell" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><code>${escapeHtml(item.identifier)}</code></span></button></td><td>${escapeHtml(item.category)}</td><td>${published?.label || "-"}</td><td>${working?.label || "-"}</td><td>${functionStatusTag(primary.status)}</td><td>${firmwareCount}</td><td>${escapeHtml(primary.publishedAt || primary.createdAt || item.createdAt)}</td><td><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">详情</button>${!working && published ? `<button class="btn btn-text" data-action="function-create-version" data-id="${item.id}">新版本</button>` : ""}</td></tr>`;
 }
 
 function latestPublishedVersion(item) {
   return item?.versions?.find((version) => version.status === "已发布") || null;
-}
-
-function functionVersionReferenceMachines(item, version) {
-  if (!item || !version) return [];
-  const references = [];
-  for (const [machineId, config] of Object.entries(state.machineConfigs)) {
-    if ((config.functions || []).some((binding) => typeof binding === "object" && binding.functionId === item.id && binding.versionId === version.id)) {
-      const machine = machines.find((entry) => entry.id === machineId);
-      if (machine) references.push(machine);
-    }
-  }
-  return references;
-}
-
-function functionVersionReferenceCount(item, version) {
-  return Math.max(Number(version?.refs || 0), functionVersionReferenceMachines(item, version).length);
 }
 
 function selectedFunctionVersion(item) {
@@ -728,8 +790,28 @@ function canEditFunctionMetadata(item) {
   return !working || working.status !== "测试中";
 }
 
-function functionFirmwareVersions(version) {
-  return [...new Set((version?.firmwareVersions || []).map((value) => String(value).trim()).filter(Boolean))];
+function functionFirmwareRelations(version) {
+  return Array.isArray(version?.firmwareRelations) ? version.firmwareRelations : [];
+}
+
+function functionFirmwareRelationStats(version) {
+  const relations = functionFirmwareRelations(version);
+  return {
+    relations,
+    machineCount: new Set(relations.map((relation) => relation.machineId).filter(Boolean)).size,
+    identifierCount: new Set(relations.map((relation) => relation.firmwareIdentifier).filter(Boolean)).size,
+  };
+}
+
+function relationMachine(relation, fallbackLine = "IPC") {
+  const machine = machines.find((entry) => entry.id === relation?.machineId);
+  return machine || {
+    id: relation?.machineId || "-",
+    name: relation?.machineName || "未知机型",
+    line: relation?.productLine || fallbackLine,
+    network: "-",
+    status: "-",
+  };
 }
 
 function functionFirmwareRelationHistory(version) {
@@ -767,8 +849,7 @@ function functionHeadingActions(item) {
   if (!version) return "";
   if (version.status === "草稿") return `<button class="btn btn-primary" data-action="function-submit-test" data-id="${item.id}">提交测试</button>`;
   if (version.status === "测试中") {
-    const firmwareCount = functionFirmwareVersions(version).length;
-    const withdrawAction = `<button class="btn" data-action="function-withdraw-test" data-id="${item.id}" title="${firmwareCount ? `撤回时将解除 ${firmwareCount} 个固件关联` : "撤回后版本将恢复为可编辑草稿"}">撤回草稿</button>`;
+    const withdrawAction = `<button class="btn" data-action="function-withdraw-test" data-id="${item.id}" title="撤回后版本将恢复为可编辑草稿">撤回草稿</button>`;
     return `${withdrawAction}<button class="btn btn-primary" data-action="function-publish-version" data-id="${item.id}">发布 ${version.label}</button>`;
   }
   if (version.status === "已发布") {
@@ -879,7 +960,7 @@ function modelSpecPage(functionId) {
   const version = selectedFunctionVersion(item) || workspaceFunctionVersion(item);
   state.functionVersionSelection[item.id] = version.id;
   const spec = getModelSpec(item.id, version.id);
-  if (!["model", "hardware", "references"].includes(state.modelTab)) state.modelTab = "model";
+  if (!["model", "hardware", "firmware"].includes(state.modelTab)) state.modelTab = "model";
   const modelRows = flattenModelRows(spec);
   const editable = version.status === "草稿";
   const role = functionVersionRole(item, version);
@@ -896,35 +977,37 @@ function modelSpecPage(functionId) {
       ${functionVersionRail(item, version)}
       <div class="version-detail-panel" role="tabpanel" aria-label="${escapeHtml(version.label)} 版本配置">
         <div class="version-detail-head"><div class="version-detail-title"><span class="version-role ${functionVersionRoleClass(role)}">${role}</span><div><h3>${escapeHtml(version.label)}</h3>${functionStatusTag(version.status)}<small>${escapeHtml(sourceLabel)} · ${contextHint}</small></div><div class="version-description"><div><span>版本说明</span>${canEditVersionDescription(version) ? `<button class="version-description-edit" data-action="function-edit-version" data-id="${item.id}" data-version="${version.id}" title="编辑版本说明" aria-label="编辑版本说明">✎</button>` : ""}</div><p>${escapeHtml(version.changelog || "暂无版本说明")}</p></div></div><div class="version-detail-actions">${functionSelectedVersionActions(item, version)}</div></div>
-        <div class="version-detail-meta"><span>创建时间 <strong>${escapeHtml(version.createdAt || "-")}</strong></span><span>发布时间 <strong>${escapeHtml(version.publishedAt || "-")}</strong></span><span>引用机型 <strong>${functionVersionReferenceCount(item, version)}</strong></span></div>
-        ${functionLifecycleSummary(version)}
-        <div class="function-detail-tabs">${[["model", "物模型"], ["hardware", "关联硬件"], ["references", "引用机型"]].map(([id, label]) => `<button class="${state.modelTab === id ? "active" : ""}" data-action="model-tab" data-tab="${id}">${label}</button>`).join("")}</div><div class="model-content">${functionDetailTabContent(item, version, spec, modelRows, editable)}</div>
+        <div class="version-detail-meta"><span>创建时间 <strong>${escapeHtml(version.createdAt || "-")}</strong></span><span>发布时间 <strong>${escapeHtml(version.publishedAt || "-")}</strong></span></div>
+        ${functionLifecycleSummary(item, version)}
+        <div class="function-detail-tabs">${[["model", "物模型"], ["hardware", "关联硬件"], ["firmware", "固件关联"]].map(([id, label]) => `<button class="${state.modelTab === id ? "active" : ""}" data-action="model-tab" data-tab="${id}">${label}</button>`).join("")}</div><div class="model-content">${functionDetailTabContent(item, version, spec, modelRows, editable)}</div>
       </div>
     </div>
   </section>`;
 }
 
 function functionDetailTabContent(item, version, spec, rows, editable) {
-  if (state.modelTab === "hardware") return relatedHardwareContent(spec, editable);
-  if (state.modelTab === "references") return functionReferencesContent(item, version);
+  if (state.modelTab === "hardware") return relatedHardwareContent(item, version, spec, editable);
+  if (state.modelTab === "firmware") return functionFirmwareRelationsContent(item, version);
   return modelInfoContent(rows, editable);
 }
 
-function functionLifecycleSummary(version) {
+function functionLifecycleSummary(item, version) {
   const stepIndex = { "草稿": 0, "测试中": 1, "已发布": 2, "已停用": 2 }[version.status] || 0;
   const steps = ["草稿", "测试中", version.status === "已停用" ? "已停用" : "已发布"];
-  const firmwareVersions = functionFirmwareVersions(version);
-  const latestUnlink = functionFirmwareRelationHistory(version).find((record) => record?.action === "withdraw-unlink");
+  const relationStats = functionFirmwareRelationStats(version);
   const messages = {
     "草稿": ["配置准备中", "版本可编辑，物模型和关联硬件均为可选；提交测试后将锁定。"],
-    "测试中": ["功能版本测试中", "版本配置已锁定；固件关联仅作引用记录，不作为发布前置条件。"],
-    "已发布": ["版本已正式发布", "可供同产品线机型和固件版本选择使用。"],
-    "已停用": ["版本已停用", "保留已有引用，但不能再被新增选择。"],
+    "测试中": ["功能版本测试中", "版本配置已锁定；确认完成后可发布，不在此阶段建立固件关联。"],
+    "已发布": ["版本已正式发布", "可由同产品线的固件发布配置选择并建立关联。"],
+    "已停用": ["版本已停用", "既有固件关联保留，新固件发布配置不可再选择。"],
   };
   const [title, description] = messages[version.status] || messages["草稿"];
-  const firmwareContent = firmwareVersions.length
-    ? `<div class="firmware-version-panel"><span>关联固件版本（${firmwareVersions.length}）</span><div class="firmware-version-list">${firmwareVersions.map((firmware) => `<code>${escapeHtml(firmware)}</code>`).join("")}</div></div>`
-    : `<div class="firmware-version-panel unlinked"><span>关联固件版本</span><strong>暂未关联固件版本</strong>${latestUnlink ? `<small class="firmware-history-note">最近撤回已解除：${(latestUnlink.firmwareVersions || []).map((firmware) => escapeHtml(firmware)).join("、") || "关联记录"} · ${escapeHtml(latestUnlink.createdAt || "")}</small>` : ""}</div>`;
+  const associationHint = relationStats.relations.length
+    ? `涉及 ${relationStats.machineCount} 个机型 · 查看明细 ›`
+    : ["已发布", "已停用"].includes(version.status)
+      ? "暂未关联固件版本 · 查看详情 ›"
+      : "功能发布后可建立关联 · 查看详情 ›";
+  const firmwareContent = `<button class="firmware-relation-overview ${relationStats.relations.length ? "" : "unlinked"}" data-action="function-open-references" data-id="${item.id}" title="查看固件关联明细"><span>关联固件版本</span><strong><b>${relationStats.relations.length}</b> 个</strong><small>${associationHint}</small></button>`;
   return `<div class="version-flow-panel"><div class="lifecycle-steps">${steps.map((label, index) => `<div class="lifecycle-step ${index < stepIndex ? "done" : index === stepIndex ? "active" : ""}"><span>${index < stepIndex ? "✓" : index + 1}</span><strong>${label}</strong></div>`).join("")}</div><div class="version-flow-summary"><div><span>当前阶段</span><strong>${escapeHtml(title)}</strong><p>${escapeHtml(description)}</p></div>${firmwareContent}</div></div>`;
 }
 
@@ -933,18 +1016,31 @@ function modelInfoContent(rows, editable) {
   return `<div class="model-summary"><span>属性 <strong>${counts.property}</strong></span><span>服务 <strong>${counts.service}</strong></span><span>事件 <strong>${counts.event}</strong></span><span>${editable ? "当前为草稿版本，可继续编辑" : "当前版本已锁定"}</span></div><div class="model-section-head"><div><h3>物模型定义 <small class="optional-label">可选</small></h3><p>按需配置属性、服务和事件；未配置也可提交测试与发布。</p></div><div><button class="btn" data-action="model-preview">查看 JSON</button>${editable ? `<button class="btn" data-action="model-import">文本导入</button><button class="btn btn-primary" data-action="model-add">＋ 添加物模型</button>` : ""}</div></div><div class="data-table-wrap"><table class="mini-table model-table"><thead><tr><th>物模型名称</th><th>标识符</th><th>类型</th><th>数据类型</th><th>数据定义</th><th>权限</th><th>备注</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td><code>${escapeHtml(row.identifier)}</code></td><td>${modelKindLabel(row.kind)}</td><td>${escapeHtml(row.dataType || row.callType || "-")}</td><td>${escapeHtml(modelDefinition(row))}</td><td>${escapeHtml(row.access || "-")}</td><td>${escapeHtml(row.description || "-")}</td><td>${editable ? `<button class="btn btn-text" data-action="model-edit" data-kind="${row.kind}" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="${row.kind}" data-index="${row.index}">删除</button>` : `<span class="read-only-label">只读</span>`}</td></tr>`).join("") : `<tr><td colspan="8"><div class="empty-state">暂未配置物模型，不影响测试与发布</div></td></tr>`}</tbody></table></div>`;
 }
 
-function relatedHardwareContent(spec, editable) {
-  return `<div class="model-section-head"><div><h3>关联硬件 <small class="optional-label">可选</small></h3><p>按需记录当前版本适配的硬件型号；未关联也可提交测试与发布。</p></div>${editable ? `<button class="btn btn-primary" data-action="model-hardware-add">＋ 关联硬件</button>` : ""}</div><div class="data-table-wrap"><table class="mini-table model-table related-hardware-table"><thead><tr><th>硬件名称</th><th>图片</th><th>类型</th><th>生产厂商</th><th>状态</th><th>操作</th></tr></thead><tbody>${spec.hardware.length ? spec.hardware.map((id, index) => { const row = assetConfigs.hardware.rows.find((item) => item.id === id); return row ? `<tr><td>${escapeHtml(row.name)}</td><td><img class="asset-thumb" src="${row.image}" alt=""></td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.maker)}</td><td><span class="status-tag">${row.status}</span></td><td>${editable ? `<button class="btn btn-text danger-text" data-action="model-hardware-remove" data-index="${index}">移除</button>` : `<span class="read-only-label">只读</span>`}</td></tr>` : ""; }).join("") : `<tr><td colspan="6"><div class="empty-state">暂未关联硬件，不影响测试与发布</div></td></tr>`}</tbody></table></div>`;
+function relatedHardwareContent(item, version, spec, editable) {
+  const baseVersion = version.baseVersionId ? item.versions.find((entry) => entry.id === version.baseVersionId) : null;
+  const helper = baseVersion
+    ? `已从 ${baseVersion.label} 继承 ${spec.hardware.length} 项关联硬件，可按需调整；未关联不影响测试与发布。`
+    : "功能需要硬件支持时可按需关联；未关联不影响测试与发布。";
+  return `<div class="model-section-head"><div><h3>关联硬件 <small class="optional-label">可选</small></h3><p>${escapeHtml(helper)}</p></div>${editable ? `<button class="btn btn-primary" data-action="model-hardware-add">＋ 关联硬件</button>` : ""}</div><div class="data-table-wrap"><table class="mini-table model-table related-hardware-table"><thead><tr><th>硬件名称</th><th>图片</th><th>类型</th><th>生产厂商</th><th>状态</th><th>操作</th></tr></thead><tbody>${spec.hardware.length ? spec.hardware.map((id, index) => { const row = assetConfigs.hardware.rows.find((item) => item.id === id); return row ? `<tr><td>${escapeHtml(row.name)}</td><td><img class="asset-thumb" src="${row.image}" alt=""></td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.maker)}</td><td><span class="status-tag">${row.status}</span></td><td>${editable ? `<button class="btn btn-text danger-text" data-action="model-hardware-remove" data-index="${index}">移除</button>` : `<span class="read-only-label">只读</span>`}</td></tr>` : ""; }).join("") : `<tr><td colspan="6"><div class="empty-state">暂未关联硬件，不影响测试与发布</div></td></tr>`}</tbody></table></div>`;
 }
 
-function functionReferencesContent(item, version) {
-  const references = functionVersionReferenceMachines(item, version);
-  const referenceCount = functionVersionReferenceCount(item, version);
-  if (references.length < Math.min(referenceCount, 5)) {
-    const existingIds = new Set(references.map((machine) => machine.id));
-    references.push(...machines.filter((machine) => !existingIds.has(machine.id)).slice(0, Math.min(referenceCount, 5) - references.length));
-  }
-  return `<div class="model-section-head"><div><h3>引用机型</h3><p>机型绑定的是 ${version.label}，不会随新版本自动升级。</p></div><span class="reference-count">${referenceCount} 个机型引用</span></div><div class="data-table-wrap"><table class="mini-table"><thead><tr><th>机型名称</th><th>产品线</th><th>网络类型</th><th>固件标识</th><th>状态</th></tr></thead><tbody>${references.length ? references.map((machine) => `<tr><td>${escapeHtml(machine.name)}</td><td>${escapeHtml(machine.line)}</td><td>${escapeHtml(machine.network)}</td><td>${escapeHtml(machine.firmware)}</td><td>${escapeHtml(machine.status)}</td></tr>`).join("") : `<tr><td colspan="5"><div class="empty-state compact-empty">当前版本尚未被机型引用</div></td></tr>`}</tbody></table></div>`;
+function functionFirmwareRelationsContent(item, version) {
+  const relations = functionFirmwareRelations(version);
+  const stats = functionFirmwareRelationStats(version);
+  const query = state.functionReferenceSearch.toLowerCase();
+  const filteredRelations = relations.filter((relation) => {
+    const machine = relationMachine(relation, item.productLine);
+    const productLine = relation.productLine || machine.line || item.productLine;
+    return !query || `${relation.firmwareVersion} ${relation.firmwareIdentifier} ${productLine} ${machine.name} ${machine.id}`.toLowerCase().includes(query);
+  });
+  const relationPageSize = 8;
+  const relationPageCount = Math.max(1, Math.ceil(filteredRelations.length / relationPageSize));
+  state.functionReferencePage = Math.min(relationPageCount, Math.max(1, state.functionReferencePage));
+  const relationPageRows = filteredRelations.slice((state.functionReferencePage - 1) * relationPageSize, state.functionReferencePage * relationPageSize);
+  const firmwareContent = `<div class="relation-toolbar"><div class="relation-search"><input data-role="function-relation-search" value="${escapeHtml(state.functionReferenceSearch)}" placeholder="搜索版本号、标识、产线或机型"><button class="btn" data-action="function-relation-search">搜索</button></div>${state.functionReferenceSearch ? `<button class="btn btn-text" data-action="function-relation-reset">清除搜索</button>` : ""}</div>
+    <div class="data-table-wrap"><table class="mini-table firmware-relation-table"><thead><tr><th>固件版本号</th><th>固件标识</th><th>所属产品线</th><th>所属机型</th><th>关联时间</th></tr></thead><tbody>${relationPageRows.length ? relationPageRows.map((relation) => { const machine = relationMachine(relation, item.productLine); return `<tr><td><strong>${escapeHtml(relation.firmwareVersion)}</strong></td><td><code>${escapeHtml(relation.firmwareIdentifier)}</code></td><td>${escapeHtml(relation.productLine || machine.line || item.productLine)}</td><td><span class="relation-machine-cell"><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.id)}</small></span></td><td>${escapeHtml(relation.linkedAt || "-")}</td></tr>`; }).join("") : `<tr><td colspan="5"><div class="empty-state compact-empty">${relations.length ? "暂无符合搜索条件的关联记录" : "当前版本暂未关联固件版本"}</div></td></tr>`}</tbody></table></div>
+    <div class="relation-pagination"><span>共 ${filteredRelations.length} 条 · 第 ${state.functionReferencePage}/${relationPageCount} 页</span><div><button data-action="function-relation-page" data-page="${state.functionReferencePage - 1}" title="上一页" aria-label="上一页" ${state.functionReferencePage === 1 ? "disabled" : ""}>‹</button><button data-action="function-relation-page" data-page="${state.functionReferencePage + 1}" title="下一页" aria-label="下一页" ${state.functionReferencePage === relationPageCount ? "disabled" : ""}>›</button></div></div>`;
+  return `<div class="reference-workspace"><div class="model-section-head reference-section-head"><div><h3>固件关联</h3><p>查看当前 ${version.label} 被固件发布配置关联的记录；涉及机型由固件信息汇总得出。</p></div><div class="reference-statline"><span>涉及机型 <strong>${stats.machineCount}</strong></span><span>固件标识 <strong>${stats.identifierCount}</strong></span><span>固件版本 <strong>${relations.length}</strong></span></div></div>${firmwareContent}</div>`;
 }
 
 function functionVersionsContent(item) {
@@ -954,7 +1050,7 @@ function functionVersionsContent(item) {
   const versionAction = working
     ? `<div class="working-version-notice"><span>当前正在推进 <strong>${working.label}</strong> · ${functionStatusTag(working.status)}</span></div>`
     : published ? `<button class="btn btn-primary" data-action="function-create-version" data-id="${item.id}" data-version="${published.id}">＋ 创建新版本</button>` : "";
-  return `<div class="model-section-head version-history-head"><div><h3>版本历史</h3><p>历史版本以只读快照查看，不会改变当前工作区上下文。</p></div>${versionAction}</div><div class="data-table-wrap"><table class="mini-table version-history-table"><thead><tr><th>版本</th><th>版本角色</th><th>状态</th><th>变更说明</th><th>创建时间</th><th>发布时间</th><th>引用机型</th><th>操作</th></tr></thead><tbody>${item.versions.map((version) => { const role = functionVersionRole(item, version); return `<tr class="${version.id === selected.id ? "active-version-row" : ""}"><td><strong>${version.label}</strong></td><td><span class="version-role ${functionVersionRoleClass(role)}">${role}</span></td><td>${functionStatusTag(version.status)}</td><td>${escapeHtml(version.changelog || "-")}</td><td>${escapeHtml(version.createdAt || "-")}</td><td>${escapeHtml(version.publishedAt || "-")}</td><td>${functionVersionReferenceCount(item, version)}</td><td><button class="btn btn-text" data-action="function-version-snapshot" data-id="${item.id}" data-version="${version.id}">查看快照</button></td></tr>`; }).join("")}</tbody></table></div>`;
+  return `<div class="model-section-head version-history-head"><div><h3>版本历史</h3><p>历史版本以只读快照查看，不会改变当前工作区上下文。</p></div>${versionAction}</div><div class="data-table-wrap"><table class="mini-table version-history-table"><thead><tr><th>版本</th><th>版本角色</th><th>状态</th><th>变更说明</th><th>创建时间</th><th>发布时间</th><th>关联固件</th><th>操作</th></tr></thead><tbody>${item.versions.map((version) => { const role = functionVersionRole(item, version); return `<tr class="${version.id === selected.id ? "active-version-row" : ""}"><td><strong>${version.label}</strong></td><td><span class="version-role ${functionVersionRoleClass(role)}">${role}</span></td><td>${functionStatusTag(version.status)}</td><td>${escapeHtml(version.changelog || "-")}</td><td>${escapeHtml(version.createdAt || "-")}</td><td>${escapeHtml(version.publishedAt || "-")}</td><td>${functionFirmwareRelations(version).length}</td><td><button class="btn btn-text" data-action="function-version-snapshot" data-id="${item.id}" data-version="${version.id}">查看快照</button></td></tr>`; }).join("")}</tbody></table></div>`;
 }
 
 function functionVersionSnapshotBody(item, version) {
@@ -969,7 +1065,7 @@ function functionVersionSnapshotBody(item, version) {
     ["关联硬件", hardwareNames],
   ];
   return `<div class="version-snapshot-hero"><div><span>${escapeHtml(item.name)}</span><h3>${version.label} ${functionStatusTag(version.status)}</h3></div><span class="version-role ${functionVersionRoleClass(role)}">${role}</span></div>
-    <div class="version-snapshot-meta"><div><span>创建时间</span><strong>${escapeHtml(version.createdAt || "-")}</strong></div><div><span>发布时间</span><strong>${escapeHtml(version.publishedAt || "-")}</strong></div><div><span>引用机型</span><strong>${functionVersionReferenceCount(item, version)}</strong></div><div><span>配置快照</span><strong>${escapeHtml(snapshot?.id || "实时配置")}</strong></div></div>
+    <div class="version-snapshot-meta"><div><span>创建时间</span><strong>${escapeHtml(version.createdAt || "-")}</strong></div><div><span>发布时间</span><strong>${escapeHtml(version.publishedAt || "-")}</strong></div><div><span>关联固件</span><strong>${functionFirmwareRelations(version).length}</strong></div><div><span>配置快照</span><strong>${escapeHtml(snapshot?.id || "实时配置")}</strong></div></div>
     <section class="version-snapshot-section"><h3>版本说明</h3><p>${escapeHtml(version.changelog || "暂无版本说明")}</p></section>
     <section class="version-snapshot-section"><h3>配置快照</h3><div class="version-snapshot-counts"><div><span>属性</span><strong>${spec.properties.length}</strong></div><div><span>服务</span><strong>${spec.services.length}</strong></div><div><span>事件</span><strong>${spec.events.length}</strong></div><div><span>关联硬件</span><strong>${spec.hardware.length}</strong></div></div><div class="snapshot-config-grid">${configGroups.map(([label, entries]) => `<div class="snapshot-config-group"><div><strong>${label}</strong><span>${entries.length} 项</span></div><div class="snapshot-token-list">${entries.length ? entries.map((entry) => `<code>${escapeHtml(entry)}</code>`).join("") : `<span class="snapshot-empty">暂无配置</span>`}</div></div>`).join("")}</div></section>`;
 }
@@ -1059,7 +1155,7 @@ function globalFunctionDetailBody(capabilityId) {
   const group = functionFamilies().find((entry) => entry.capabilityId === capabilityId);
   if (!group) return `<div class="empty-state">该全局功能已不存在</div>`;
   const primary = functionFamilySource(group);
-  return `<div class="global-detail-head"><img src="${primary.image}" alt=""><div><h3>${escapeHtml(primary.name)}</h3><code>${escapeHtml(primary.identifier)}</code><p>${escapeHtml(primary.remark || "-")}</p></div><span class="coverage-count">${group.items.length}/${productLines.length}</span></div><div class="data-table-wrap"><table class="mini-table global-detail-table"><thead><tr><th>产品线</th><th>最新发布</th><th>工作版本</th><th>当前状态</th><th>引用机型</th><th>操作</th></tr></thead><tbody>${group.items.map((item) => { const published = latestPublishedVersion(item); const working = workingFunctionVersion(item); const primaryVersion = working || published || item.versions[0]; const refs = item.versions.reduce((sum, version) => sum + functionVersionReferenceCount(item, version), 0); return `<tr><td><strong>${escapeHtml(item.productLine)}</strong></td><td>${published?.label || "-"}</td><td>${working?.label || "-"}</td><td>${functionStatusTag(primaryVersion?.status || "草稿")}</td><td>${refs}</td><td><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">进入详情</button></td></tr>`; }).join("")}</tbody></table></div>`;
+  return `<div class="global-detail-head"><img src="${primary.image}" alt=""><div><h3>${escapeHtml(primary.name)}</h3><code>${escapeHtml(primary.identifier)}</code><p>${escapeHtml(primary.remark || "-")}</p></div><span class="coverage-count">${group.items.length}/${productLines.length}</span></div><div class="data-table-wrap"><table class="mini-table global-detail-table"><thead><tr><th>产品线</th><th>最新发布</th><th>工作版本</th><th>当前状态</th><th>关联固件</th><th>操作</th></tr></thead><tbody>${group.items.map((item) => { const published = latestPublishedVersion(item); const working = workingFunctionVersion(item); const primaryVersion = working || published || item.versions[0]; const firmwareCount = item.versions.reduce((sum, version) => sum + functionFirmwareRelations(version).length, 0); return `<tr><td><strong>${escapeHtml(item.productLine)}</strong></td><td>${published?.label || "-"}</td><td>${working?.label || "-"}</td><td>${functionStatusTag(primaryVersion?.status || "草稿")}</td><td>${firmwareCount}</td><td><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">进入详情</button></td></tr>`; }).join("")}</tbody></table></div>`;
 }
 
 function editableSection(title, kind, rows, readOnly) {
@@ -1257,7 +1353,7 @@ function renderModal() {
     const targetLine = targets.includes(modal.targetLine) ? modal.targetLine : targets[0];
     const spec = item && version ? getModelSpec(item.id, version.id) : { properties: [], services: [], events: [] };
     title = "复制到其他产品线";
-    body = item && version && targetLine ? `<div class="copy-source-summary"><span>复制来源</span><strong>${escapeHtml(item.productLine)} · ${escapeHtml(item.name)} ${version.label}</strong><small>仅使用已发布版本作为跨产线复制来源</small></div><div class="modal-form">${selectField("目标产品线", "modal-copy-target-line", targets, targetLine, true)}<div class="form-row"><label>目标版本</label><div class="form-static-value"><strong>V1 · 草稿</strong><span>目标产品线独立管理版本</span></div></div><div class="form-row"><label>复制内容</label><div class="copy-content-list"><span>功能资料</span><span>物模型 ${spec.properties.length + spec.services.length + spec.events.length} 项</span><span class="muted">不复制关联硬件、测试记录和机型引用</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-copy-version-changelog" placeholder="说明面向 ${escapeHtml(targetLine)} 的适配目标">${escapeHtml(modal.changelog || `基于 ${item.productLine} ${version.label} 适配 ${targetLine}`)}</textarea></div></div>` : `<div class="empty-state compact-empty">暂无可复制的目标产品线</div>`;
+    body = item && version && targetLine ? `<div class="copy-source-summary"><span>复制来源</span><strong>${escapeHtml(item.productLine)} · ${escapeHtml(item.name)} ${version.label}</strong><small>仅使用已发布版本作为跨产线复制来源</small></div><div class="modal-form">${selectField("目标产品线", "modal-copy-target-line", targets, targetLine, true)}<div class="form-row"><label>目标版本</label><div class="form-static-value"><strong>V1 · 草稿</strong><span>目标产品线独立管理版本</span></div></div><div class="form-row"><label>复制内容</label><div class="copy-content-list"><span>功能资料</span><span>物模型 ${spec.properties.length + spec.services.length + spec.events.length} 项</span><span class="muted">不复制关联硬件和固件关联</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-copy-version-changelog" placeholder="说明面向 ${escapeHtml(targetLine)} 的适配目标">${escapeHtml(modal.changelog || `基于 ${item.productLine} ${version.label} 适配 ${targetLine}`)}</textarea></div></div>` : `<div class="empty-state compact-empty">暂无可复制的目标产品线</div>`;
     footer = item && version && targetLine ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">复制并创建 V1</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "function-form") {
     const item = modal.id ? functions.find((entry) => entry.id === modal.id) : null;
@@ -1275,22 +1371,15 @@ function renderModal() {
     const version = item ? selectedFunctionVersion(item) : null;
     const spec = item && version ? getModelSpec(item.id, version.id) : { properties: [], services: [], events: [], hardware: [] };
     title = `提交测试 · ${version?.label || ""}`;
-    body = `<div class="submit-test-summary"><div><span>版本</span><strong>${escapeHtml(version?.label || "-")}</strong></div><div><span>版本说明</span><strong>${escapeHtml(version?.changelog || "未填写")}</strong></div><div><span>物模型</span><strong>${spec.properties.length + spec.services.length + spec.events.length} 项（可选）</strong></div><div><span>关联硬件</span><strong>${spec.hardware.length} 项（可选）</strong></div></div><div class="info-strip">提交后版本将锁定并进入测试中，可被同产品线的固件发布系统选择关联。是否关联固件版本不影响后续发布。</div>`;
+    body = `<div class="submit-test-summary"><div><span>版本</span><strong>${escapeHtml(version?.label || "-")}</strong></div><div><span>版本说明</span><strong>${escapeHtml(version?.changelog || "未填写")}</strong></div><div><span>物模型</span><strong>${spec.properties.length + spec.services.length + spec.events.length} 项（可选）</strong></div><div><span>关联硬件</span><strong>${spec.hardware.length} 项（可选）</strong></div></div><div class="info-strip">提交后版本将锁定并进入测试中；测试完成并发布后，才可由固件发布配置选择。</div>`;
     footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm" ${version?.changelog ? "" : "disabled"}>确认提交测试</button>`;
   } else if (modal.type === "function-publish-version") {
     const item = functions.find((entry) => entry.id === modal.id);
     const version = item ? selectedFunctionVersion(item) : null;
     const spec = item && version ? getModelSpec(item.id, version.id) : { properties: [], services: [], events: [], hardware: [] };
-    const firmwareVersions = functionFirmwareVersions(version);
     title = `发布功能版本 · ${version?.label || ""}`;
-    body = `<div class="release-checklist"><div><span>物模型（可选）</span><strong>${spec.properties.length + spec.services.length + spec.events.length} 项</strong></div><div><span>关联硬件（可选）</span><strong>${spec.hardware.length} 项</strong></div><div><span>关联固件版本（可选）</span><strong>${firmwareVersions.length ? `${firmwareVersions.length} 个版本` : "暂未关联"}</strong></div></div><div class="form-static-value release-version-description"><span>版本说明</span><strong>${escapeHtml(version?.changelog || "-")}</strong></div><div class="info-strip ${firmwareVersions.length ? "" : "warning-strip"}">${firmwareVersions.length ? `已关联固件版本：${firmwareVersions.map((firmware) => escapeHtml(firmware)).join("、")}。关联关系仅作引用记录，不代表已完成验证。` : "当前版本暂未关联任何固件版本，仍可发布，但无法确认实际固件适配情况。"}</div>`;
-    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">${firmwareVersions.length ? "确认发布" : "继续发布"}</button>`;
-  } else if (modal.type === "function-publish-unlinked-confirm") {
-    const item = functions.find((entry) => entry.id === modal.id);
-    const version = item ? selectedFunctionVersion(item) : null;
-    title = "确认无关联发布";
-    body = `<div class="unlinked-release-confirm"><strong>${escapeHtml(item?.name || "该功能")} ${escapeHtml(version?.label || "")}</strong><p>当前功能版本未关联任何固件版本。发布后可以被其他系统引用，但无法确认实际固件适配情况。</p><span>确定仍要发布吗？</span></div>`;
-    footer = `<button class="btn" data-action="modal-close">返回检查</button><button class="btn btn-primary" data-action="modal-confirm">确认发布</button>`;
+    body = `<div class="release-checklist"><div><span>物模型（可选）</span><strong>${spec.properties.length + spec.services.length + spec.events.length} 项</strong></div><div><span>关联硬件（可选）</span><strong>${spec.hardware.length} 项</strong></div></div><div class="form-static-value release-version-description"><span>版本说明</span><strong>${escapeHtml(version?.changelog || "-")}</strong></div><div class="info-strip">发布后当前版本将成为正式版本，可由同产品线的固件发布配置选择并建立关联。</div>`;
+    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">确认发布</button>`;
   } else if (modal.type === "function-version-snapshot") {
     const item = functions.find((entry) => entry.id === modal.id);
     const version = item?.versions.find((entry) => entry.id === modal.versionId);
@@ -1313,28 +1402,22 @@ function renderModal() {
     const spec = item && source ? getModelSpec(item.id, source.id) : { properties: [], services: [], events: [], hardware: [] };
     const nextNumber = item ? Math.max(...item.versions.map((version) => version.number || 0)) + 1 : 1;
     title = "创建新版本";
-    body = item && source ? `<div class="copy-source-summary"><span>复制来源</span><strong>${escapeHtml(item.name)} ${source.label} · ${escapeHtml(source.status)}</strong><small>原版本及其机型引用不会改变</small></div><div class="modal-form"><div class="form-row"><label>新版本</label><div class="form-static-value"><strong>V${nextNumber} · 草稿</strong><span>创建后独立配置和测试</span></div></div><div class="form-row"><label>继承内容</label><div class="copy-content-list"><span>物模型 ${spec.properties.length + spec.services.length + spec.events.length} 项</span><span>关联硬件 ${spec.hardware.length} 项</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-new-version-changelog" placeholder="说明本版本新增、调整或修复的内容"></textarea></div></div>` : `<div class="empty-state compact-empty">请先发布一个版本，再创建新版本</div>`;
+    body = item && source ? `<div class="copy-source-summary"><span>复制来源</span><strong>${escapeHtml(item.name)} ${source.label} · ${escapeHtml(source.status)}</strong><small>原版本及其固件关联不会改变</small></div><div class="modal-form"><div class="form-row"><label>新版本</label><div class="form-static-value"><strong>V${nextNumber} · 草稿</strong><span>创建后独立配置和测试</span></div></div><div class="form-row"><label>继承内容</label><div class="copy-content-list"><span>物模型 ${spec.properties.length + spec.services.length + spec.events.length} 项</span><span>关联硬件 ${spec.hardware.length} 项</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-new-version-changelog" placeholder="说明本版本新增、调整或修复的内容"></textarea></div></div>` : `<div class="empty-state compact-empty">请先发布一个版本，再创建新版本</div>`;
     footer = item && source ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">创建并进入配置</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "function-version-status") {
     const item = functions.find((entry) => entry.id === modal.id);
     const version = item ? item.versions.find((entry) => entry.id === modal.versionId) || selectedFunctionVersion(item) : null;
-    const firmwareVersions = functionFirmwareVersions(version);
     title = modal.nextStatus === "已停用" ? "停用功能版本" : modal.nextStatus === "已发布" ? "恢复功能版本" : "撤回测试版本";
-    if (modal.nextStatus === "草稿" && firmwareVersions.length) {
-      body = `<div class="withdraw-confirm"><div class="withdraw-confirm-head"><span>即将撤回</span><strong>${escapeHtml(item?.name || "该功能")} ${escapeHtml(version?.label || "")}</strong></div><div class="withdraw-firmware-impact"><span>将解除 ${firmwareVersions.length} 个固件关联</span><div class="withdraw-firmware-list">${firmwareVersions.map((firmware) => `<code>${escapeHtml(firmware)}</code>`).join("")}</div></div><div class="withdraw-rule-list"><div><strong>1</strong><span>功能版本回到草稿并解除锁定，可继续修改配置与版本说明</span></div><div><strong>2</strong><span>上述固件关联将从当前版本移除，并保留本次解除记录</span></div><div><strong>3</strong><span>固件发布系统将无法继续选择该草稿版本</span></div><div><strong>4</strong><span>再次提交测试后，需要由固件发布系统重新选择并建立关联</span></div></div><p>此操作不会删除功能版本，但会中断当前关联关系。</p></div>`;
-      footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-danger" data-action="modal-confirm">确认撤回并解除关联</button>`;
-    } else {
-      const statusHint = modal.nextStatus === "已停用"
-        ? "既有机型继续保留引用，但新机型将无法选择该版本。"
-        : modal.nextStatus === "草稿"
-          ? "版本将解除锁定并回到草稿；修改完成后需要重新提交测试。"
-          : "恢复后可再次供新机型选择，既有引用不受影响。";
-      body = `<div class="confirm-copy">确认将“${escapeHtml(item?.name || "该功能")} ${version?.label || ""}”变更为“${modal.nextStatus}”吗？${statusHint}</div>`;
-    }
+    const statusHint = modal.nextStatus === "已停用"
+      ? "既有固件关联保留，但新的固件发布配置将无法选择该版本。"
+      : modal.nextStatus === "草稿"
+        ? "版本将解除锁定并回到草稿；修改完成后需要重新提交测试。"
+        : "恢复后可再次被固件发布配置选择，既有关联不受影响。";
+    body = `<div class="confirm-copy">确认将“${escapeHtml(item?.name || "该功能")} ${version?.label || ""}”变更为“${modal.nextStatus}”吗？${statusHint}</div>`;
   } else if (modal.type === "function-delete-confirm") {
     const item = functions.find((entry) => entry.id === modal.id);
     title = "删除功能";
-    body = `<div class="confirm-copy">确定删除功能“${escapeHtml(item?.name || "") }”吗？该操作会同时从机型功能配置中移除引用。</div>`;
+    body = `<div class="confirm-copy">确定删除功能“${escapeHtml(item?.name || "") }”吗？该操作会删除功能资料及全部版本配置，且无法恢复。</div>`;
     footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-danger" data-action="modal-confirm">删除</button>`;
   } else if (modal.type === "model-form") {
     title = Number.isInteger(modal.index) ? "编辑物模型" : "添加物模型";
@@ -1478,7 +1561,7 @@ function persistState() {
       assets[type] = { categories: assetConfigs[type].categories, rows: assetConfigs[type].rows };
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      version: 3,
+      version: 4,
       machines,
       assets,
       functionCategories,
@@ -1496,7 +1579,8 @@ function persistState() {
 function restorePersistentState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-    if (!saved || ![1, 2, 3].includes(saved.version)) return;
+    if (!saved || ![1, 2, 3, 4].includes(saved.version)) return;
+    const shouldMigrateDefinedFunctionsToDraft = saved.version < 4;
     if (Array.isArray(saved.machines)) machines.splice(0, machines.length, ...saved.machines);
     for (const type of ["hardware", "pcba", "electronic"]) {
       const asset = saved.assets?.[type];
@@ -1504,7 +1588,25 @@ function restorePersistentState() {
       if (Array.isArray(asset?.rows)) assetConfigs[type].rows.splice(0, assetConfigs[type].rows.length, ...asset.rows);
     }
     if (Array.isArray(saved.functionCategories)) functionCategories.splice(0, functionCategories.length, ...saved.functionCategories);
-    if (Array.isArray(saved.functions)) functions.splice(0, functions.length, ...saved.functions);
+    if (Array.isArray(saved.functions)) {
+      functions.splice(0, functions.length, ...saved.functions);
+      definedFunctionMocks.forEach((seed) => {
+        const existing = functions.find((item) => item.productLine === seed.productLine && item.identifier === seed.identifier);
+        if (!existing) {
+          functions.push(JSON.parse(JSON.stringify(seed)));
+          return;
+        }
+        if (!shouldMigrateDefinedFunctionsToDraft) return;
+        const hasWorkingVersion = existing.versions?.some((version) => ["草稿", "测试中"].includes(version.status));
+        const seededVersion = existing.versions?.find((version) => version.id === seed.versions[0].id);
+        if (!hasWorkingVersion && seededVersion?.status === "已发布") {
+          seededVersion.status = "草稿";
+          seededVersion.publishedAt = "";
+          seededVersion.publishedSnapshot = null;
+          seededVersion.firmwareRelations = [];
+        }
+      });
+    }
     if (["list", "card"].includes(saved.functionViewMode)) state.functionViewMode = saved.functionViewMode;
     if (saved.modelSpecs && typeof saved.modelSpecs === "object") state.modelSpecs = saved.modelSpecs;
     if (saved.machineConfigs && typeof saved.machineConfigs === "object") state.machineConfigs = saved.machineConfigs;
@@ -1524,15 +1626,6 @@ function restorePersistentState() {
 }
 
 function normalizeFunctionData() {
-  const initialFirmwareRelations = {
-    "f1-v2": ["23.210.211", "23.210.212"],
-    "f1-v1": ["23.110.200"],
-    "f2-v1": ["99.789.24", "23.210.211"],
-    "f3-v2": ["23.230.111"],
-    "f4-v1": ["23.210.211"],
-    "f5-v1": ["3.8.12"],
-    "f7-v1": ["1.2.0"],
-  };
   functions.forEach((item) => {
     if (!item.capabilityId) item.capabilityId = `capability:${item.identifier || item.id}`;
     item.versions.forEach((version) => {
@@ -1545,9 +1638,39 @@ function normalizeFunctionData() {
       }
       const spec = getModelSpec(item.id, version.id);
       if (version.status === "待发布") version.status = "测试中";
-      if (!Array.isArray(version.firmwareVersions)) version.firmwareVersions = [...(initialFirmwareRelations[version.id] || [])];
-      version.firmwareVersions = functionFirmwareVersions(version);
       if (!Array.isArray(version.firmwareRelationHistory)) version.firmwareRelationHistory = [];
+      const legacyIdentifiers = Array.isArray(version.firmwareVersions) ? version.firmwareVersions.map((value) => String(value).trim()).filter(Boolean) : [];
+      if (!Array.isArray(version.firmwareRelations)) {
+        const seeded = initialFirmwareRelations[version.id] || [];
+        const lineMachines = machines.filter((machine) => machine.line === item.productLine);
+        version.firmwareRelations = version.firmwareRelationHistory.length || (!legacyIdentifiers.length && !seeded.length)
+          ? []
+          : seeded.length
+            ? seeded.map((relation) => ({ ...relation }))
+            : legacyIdentifiers.map((identifier, relationIndex) => {
+              const machine = lineMachines[relationIndex % Math.max(1, lineMachines.length)] || machines[relationIndex % machines.length];
+              return mockFirmwareRelation(`rel-${version.id}-${relationIndex + 1}`, machine?.id || "", identifier, `1.${relationIndex + 1}.0`, version.createdAt);
+            });
+      }
+      version.firmwareRelations = version.firmwareRelations.map((relation, relationIndex) => ({
+        id: relation.id || `rel-${version.id}-${relationIndex + 1}`,
+        machineId: relation.machineId || "",
+        machineName: relation.machineName || "",
+        productLine: relation.productLine || item.productLine,
+        firmwareIdentifier: String(relation.firmwareIdentifier || "").trim(),
+        firmwareVersion: String(relation.firmwareVersion || "").trim(),
+        linkedAt: relation.linkedAt || version.createdAt,
+        source: relation.source || "固件发布系统",
+      })).filter((relation) => relation.firmwareIdentifier && relation.firmwareVersion);
+      if (!["已发布", "已停用"].includes(version.status) && version.firmwareRelations.length) {
+        version.firmwareRelationHistory.unshift({
+          action: "lifecycle-rule-unlink",
+          firmwareRelations: version.firmwareRelations.map((relation) => ({ ...relation })),
+          createdAt: new Date().toLocaleString("zh-CN", { hour12: false }),
+        });
+        version.firmwareRelations = [];
+      }
+      delete version.firmwareVersions;
       if (["已发布", "已停用"].includes(version.status) && !version.publishedSnapshot) {
         version.publishedSnapshot = createFunctionConfigSnapshot(item, version, spec, "PUB", {
           id: `PUB-${item.id}-${version.label}-legacy`,
@@ -1762,18 +1885,13 @@ function handleModalConfirm() {
     if (!version.changelog) return showToast("请先填写版本说明", "error", false);
     version.status = "测试中";
     state.modal = null;
-    return showToast(`${version.label} 已进入测试中，可关联固件版本或直接发布`);
+    return showToast(`${version.label} 已进入测试中，配置已锁定`);
   }
-  if (["function-publish-version", "function-publish-unlinked-confirm"].includes(modal.type)) {
+  if (modal.type === "function-publish-version") {
     const item = functions.find((entry) => entry.id === modal.id);
     const version = item ? selectedFunctionVersion(item) : null;
     if (!version || version.status !== "测试中") return showToast("只有测试中的版本可以发布", "error", false);
     if (!version.changelog) return showToast("缺少版本说明，请退回草稿后补充", "error", false);
-    if (modal.type === "function-publish-version" && !functionFirmwareVersions(version).length) {
-      state.modal = { type: "function-publish-unlinked-confirm", id: item.id };
-      render();
-      return;
-    }
     const publishedAt = new Date().toLocaleString("zh-CN", { hour12: false });
     const publishedSnapshot = createFunctionConfigSnapshot(item, version, getModelSpec(item.id, version.id), "PUB", { createdAt: publishedAt });
     version.status = "已发布";
@@ -1781,7 +1899,7 @@ function handleModalConfirm() {
     version.publishedSnapshot = publishedSnapshot;
     state.modelSpecs[`${item.id}:${version.id}`] = { ...deepClone(publishedSnapshot.config), savedAt: publishedAt };
     state.modal = null;
-    return showToast(`${version.label} 已发布，可供同产品线机型引用`);
+    return showToast(`${version.label} 已发布，可供同产品线的固件发布配置选择`);
   }
   if (modal.type === "function-create-version") {
     const item = functions.find((entry) => entry.id === modal.id);
@@ -1811,18 +1929,9 @@ function handleModalConfirm() {
         ? version?.status === "已发布"
         : modal.nextStatus === "已发布" && version?.status === "已停用";
     if (!allowed) return showToast("当前版本状态不支持该操作", "error", false);
-    const firmwareVersions = modal.nextStatus === "草稿" ? functionFirmwareVersions(version) : [];
-    if (firmwareVersions.length) {
-      version.firmwareRelationHistory.unshift({
-        action: "withdraw-unlink",
-        firmwareVersions: [...firmwareVersions],
-        createdAt: new Date().toLocaleString("zh-CN", { hour12: false }),
-      });
-      version.firmwareVersions = [];
-    }
     version.status = modal.nextStatus;
     state.modal = null;
-    return showToast(firmwareVersions.length ? `${version.label} 已撤回草稿，并解除 ${firmwareVersions.length} 个固件关联` : `版本状态已变更为${modal.nextStatus}`);
+    return showToast(`版本状态已变更为${modal.nextStatus}`);
   }
   if (modal.type === "function-delete-confirm") {
     const index = functions.findIndex((item) => item.id === modal.id);
@@ -2065,8 +2174,13 @@ document.addEventListener("click", (event) => {
     if (!item || !targetLine) return showToast("该功能已覆盖全部产品线", "error");
     state.modal = { type: "function-cross-line-copy", id: item.id, versionId: target.dataset.version || latestPublishedVersion(item)?.id, targetLine };
   }
-  else if (action === "function-model" || action === "function-detail") { const item = functions.find((entry) => entry.id === target.dataset.id); if (item) state.functionVersionSelection[item.id] = workspaceFunctionVersion(item)?.id; state.modelTab = "model"; return navigate(`/function/detail/${target.dataset.id}`); }
-  else if (action === "function-version-select") { const item = functions.find((entry) => entry.id === target.dataset.id); if (item?.versions.some((version) => version.id === target.dataset.version)) state.functionVersionSelection[item.id] = target.dataset.version; }
+  else if (action === "function-model" || action === "function-detail") { const item = functions.find((entry) => entry.id === target.dataset.id); if (item) state.functionVersionSelection[item.id] = workspaceFunctionVersion(item)?.id; state.modelTab = "model"; state.functionReferencePage = 1; return navigate(`/function/detail/${target.dataset.id}`); }
+  else if (action === "function-version-select") {
+    const item = functions.find((entry) => entry.id === target.dataset.id);
+    if (item?.versions.some((version) => version.id === target.dataset.version)) state.functionVersionSelection[item.id] = target.dataset.version;
+    state.functionReferenceSearch = "";
+    state.functionReferencePage = 1;
+  }
   else if (action === "function-version-snapshot") state.modal = { type: "function-version-snapshot", id: target.dataset.id, versionId: target.dataset.version };
   else if (action === "function-open-workspace") { state.functionVersionSelection[target.dataset.id] = target.dataset.version; state.modelTab = "model"; state.modal = null; return navigate(`/function/detail/${target.dataset.id}`); }
   else if (action === "function-version-view") { state.functionVersionSelection[target.dataset.id] = target.dataset.version; state.modelTab = "model"; return navigate(`/function/detail/${target.dataset.id}`); }
@@ -2093,6 +2207,20 @@ document.addEventListener("click", (event) => {
   else if (action === "function-restore-version") state.modal = { type: "function-version-status", id: target.dataset.id, versionId: target.dataset.version, nextStatus: "已发布" };
   else if (action === "function-delete") state.modal = { type: "function-delete-confirm", id: target.dataset.id };
   else if (action === "function-search") { state.functionSearch = inputValue("function-search"); state.functionPage = 1; }
+  else if (action === "function-open-references" || action === "function-review-relations") {
+    state.modal = null;
+    state.modelTab = "firmware";
+    state.functionReferencePage = 1;
+  }
+  else if (action === "function-relation-search") {
+    state.functionReferenceSearch = inputValue("function-relation-search");
+    state.functionReferencePage = 1;
+  }
+  else if (action === "function-relation-reset") {
+    state.functionReferenceSearch = "";
+    state.functionReferencePage = 1;
+  }
+  else if (action === "function-relation-page") state.functionReferencePage = Math.max(1, Number(target.dataset.page) || 1);
   else if (action === "model-tab") state.modelTab = target.dataset.tab;
   else if (action === "model-add") {
     if (!requireDraftFunctionVersion()) return;
@@ -2297,6 +2425,10 @@ document.addEventListener("keydown", (event) => {
   } else if (event.key === "Enter" && event.target.matches('[data-role="function-search"]')) {
     state.functionSearch = event.target.value.trim();
     state.functionPage = 1;
+    render();
+  } else if (event.key === "Enter" && event.target.matches('[data-role="function-relation-search"]')) {
+    state.functionReferenceSearch = event.target.value.trim();
+    state.functionReferencePage = 1;
     render();
   } else if (event.key === "Enter" && event.target.matches('[data-role="pagination-jump"]')) {
     setPage(event.target.dataset.context, event.target.value);

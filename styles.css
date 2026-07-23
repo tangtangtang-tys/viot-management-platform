@@ -1658,48 +1658,166 @@ textarea:focus-visible {
   line-height: 1.5;
 }
 
-.firmware-version-panel {
-  flex: 0 1 48%;
+.firmware-relation-overview {
+  flex: 0 0 230px;
   display: grid;
   justify-items: end;
-  gap: 7px;
+  gap: 3px;
   padding-left: 18px;
+  border: 0;
   border-left: 1px solid #d5e2f3;
+  color: inherit;
+  background: transparent;
   text-align: right;
+  cursor: pointer;
 }
 
-.firmware-version-list {
-  display: flex !important;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px !important;
+.firmware-relation-overview:hover strong,
+.firmware-relation-overview:hover small {
+  color: #1f68cf;
 }
 
-.firmware-version-list code {
-  padding: 4px 7px;
-  border: 1px solid #cbdcf2;
-  border-radius: 3px;
-  color: #315f96;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 600;
+.firmware-relation-overview > span {
+  color: #768394;
+  font-size: 12px;
 }
 
-.firmware-version-panel.unlinked strong {
-  color: #667384;
-  font-size: 13px;
+.firmware-relation-overview > strong {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  color: #34404e;
+  font-size: 14px;
   font-weight: 500;
 }
 
-.firmware-history-note {
-  max-width: 360px;
-  color: #8a6a37;
-  font-size: 12px;
-  line-height: 1.5;
+.firmware-relation-overview > strong b {
+  color: #2473e3;
+  font-size: 24px;
+  line-height: 1;
 }
 
-.reference-count {
-  color: #5f6874;
+.firmware-relation-overview > small {
+  color: #667587;
+  font-size: 12px;
+}
+
+.firmware-relation-overview.unlinked > strong b {
+  color: #818b97;
+}
+
+.reference-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.reference-section-head {
+  margin-bottom: 0;
+}
+
+.reference-section-head > div:first-child {
+  display: block;
+}
+
+.reference-statline {
+  display: flex !important;
+  gap: 0 !important;
+  border: 1px solid #e1e6ed;
+  background: #fafbfd;
+}
+
+.reference-statline span {
+  min-width: 112px;
+  padding: 10px 14px;
+  color: #6e7885;
+  font-size: 12px;
+  text-align: center;
+}
+
+.reference-statline span + span {
+  border-left: 1px solid #e1e6ed;
+}
+
+.reference-statline strong {
+  margin-left: 4px;
+  color: #2473e3;
+  font-size: 16px;
+}
+
+.relation-toolbar {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.relation-search {
+  width: min(560px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.relation-search input {
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid #dce2e9;
+  background: #fff;
+}
+
+.relation-search input {
+  min-width: 0;
+  border-right: 0;
+}
+
+.relation-search .btn {
+  height: 36px;
+}
+
+.firmware-relation-table {
+  min-width: 780px;
+}
+
+.firmware-relation-table code {
+  color: #275d9d;
+  font-weight: 600;
+}
+
+.relation-machine-cell {
+  display: grid;
+  gap: 3px;
+}
+
+.relation-machine-cell small {
+  color: #89929e;
+  font-size: 11px;
+}
+
+.relation-pagination {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #788390;
+  font-size: 12px;
+}
+
+.relation-pagination > div {
+  display: flex;
+  gap: 6px;
+}
+
+.relation-pagination button {
+  width: 32px;
+  height: 30px;
+  border: 1px solid #dce2e9;
+  background: #fff;
+  font-size: 17px;
+}
+
+.relation-pagination button:disabled {
+  color: #b8c0ca;
+  background: #f6f7f9;
+  cursor: not-allowed;
 }
 
 .compact-empty {
@@ -1907,7 +2025,7 @@ textarea:focus-visible {
 
 .release-checklist {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   margin-bottom: 20px;
   border: 1px solid #e4e8ee;
 }
@@ -1931,115 +2049,6 @@ textarea:focus-visible {
 
 .release-version-description {
   margin-bottom: 18px;
-}
-
-.warning-strip {
-  color: #80500d;
-  border-left: 3px solid #d69a3a;
-  background: #fff7e9;
-}
-
-.unlinked-release-confirm {
-  display: grid;
-  gap: 10px;
-  padding: 4px 0 8px;
-}
-
-.unlinked-release-confirm strong {
-  font-size: 15px;
-}
-
-.unlinked-release-confirm p {
-  margin: 0;
-  padding: 12px 14px;
-  color: #70480e;
-  border-left: 3px solid #d69a3a;
-  background: #fff7e9;
-  line-height: 1.7;
-}
-
-.unlinked-release-confirm span {
-  color: #4d5662;
-}
-
-.withdraw-confirm {
-  display: grid;
-  gap: 16px;
-}
-
-.withdraw-confirm-head {
-  display: grid;
-  gap: 5px;
-}
-
-.withdraw-confirm-head span,
-.withdraw-firmware-impact > span {
-  color: #7a8491;
-  font-size: 12px;
-}
-
-.withdraw-confirm-head strong {
-  color: #303944;
-  font-size: 16px;
-}
-
-.withdraw-firmware-impact {
-  display: grid;
-  gap: 10px;
-  padding: 14px 16px;
-  border-left: 3px solid #d69a3a;
-  background: #fff7e9;
-}
-
-.withdraw-firmware-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.withdraw-firmware-list code {
-  padding: 4px 8px;
-  border: 1px solid #ead3ac;
-  border-radius: 3px;
-  color: #80500d;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.withdraw-rule-list {
-  display: grid;
-  border-top: 1px solid #e3e7ed;
-}
-
-.withdraw-rule-list > div {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-  padding: 10px 0;
-  border-bottom: 1px solid #e3e7ed;
-  color: #505a66;
-  line-height: 1.55;
-}
-
-.withdraw-rule-list strong {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #cfd6df;
-  border-radius: 50%;
-  color: #596675;
-  font-size: 11px;
-}
-
-.withdraw-confirm > p {
-  margin: 0;
-  color: #b04a45;
-  font-size: 12px;
-  line-height: 1.6;
 }
 
 .optional-label {
@@ -3253,7 +3262,7 @@ textarea:focus-visible {
     flex-direction: column;
   }
 
-  .firmware-version-panel {
+  .firmware-relation-overview {
     width: 100%;
     justify-items: start;
     padding-top: 10px;
@@ -3263,8 +3272,22 @@ textarea:focus-visible {
     text-align: left;
   }
 
-  .firmware-version-list {
-    justify-content: flex-start;
+  .reference-statline {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .reference-statline span {
+    flex: 1 0 112px;
+  }
+
+  .relation-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .relation-search {
+    width: 100%;
   }
 
   .release-checklist > div + div {
