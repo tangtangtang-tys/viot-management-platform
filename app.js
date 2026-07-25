@@ -916,7 +916,10 @@ function defaultModelDataSpec(dataType) {
   if (["整数型(Int)", "浮点型(float)"].includes(dataType)) return { min: "", max: "", step: "", unit: "" };
   if (dataType === "布尔型(Bool)") return { falseLabel: "关闭", trueLabel: "开启" };
   if (dataType === "字符型(String)") return { maxLength: "" };
-  if (dataType === "数组型(array)") return { elementType: "字符型(String)", maxItems: "" };
+  if (dataType === "数组型(array)") {
+    const elementType = "字符型(String)";
+    return { elementType, maxItems: "", elementSpec: defaultModelDataSpec(elementType) };
+  }
   if (dataType === "时间型(timestamp)") return { timestampUnit: "毫秒(ms)" };
   if (dataType === "结构体(struct)") return { fields: [] };
   return {};
@@ -974,6 +977,10 @@ function parseModelDataSpec(dataType, definition = "", provided = null) {
       const fields = Array.isArray(provided.fields) ? provided.fields : legacyStructFields(provided.structSchema);
       return { fields: normalizeModelStructFields(fields) };
     }
+    if (dataType === "数组型(array)") {
+      merged.elementType = MODEL_ARRAY_ELEMENT_TYPES.includes(merged.elementType) ? merged.elementType : base.elementType;
+      merged.elementSpec = parseModelDataSpec(merged.elementType, "", provided.elementSpec);
+    }
     return merged;
   }
   const text = String(definition || "").trim();
@@ -1006,7 +1013,9 @@ function parseModelDataSpec(dataType, definition = "", provided = null) {
   if (dataType === "数组型(array)") {
     const element = text.match(/元素类型\s*[:：]\s*([^,，]+)/);
     const maxItems = text.match(/(?:最大长度|最大元素数量)\s*[:：]\s*(\d+)/);
-    return { elementType: normalizedModelDataType(element?.[1], base.elementType), maxItems: maxItems?.[1] || "" };
+    const elementDefinition = text.match(/元素规则\s*[:：]\s*(.+)$/)?.[1] || "";
+    const elementType = normalizedModelDataType(element?.[1], base.elementType);
+    return { elementType, maxItems: maxItems?.[1] || "", elementSpec: parseModelDataSpec(elementType, elementDefinition) };
   }
   if (dataType === "时间型(timestamp)") return { timestampUnit: text.includes("毫秒") ? "毫秒(ms)" : text.includes("秒") ? "秒(s)" : base.timestampUnit };
   if (dataType === "结构体(struct)") {
@@ -1022,7 +1031,10 @@ function modelDataSpecToDefinition(dataType, dataSpec) {
   if (["整数型(Int)", "浮点型(float)"].includes(dataType)) return `范围：${spec.min}~${spec.max}，步长：${spec.step}${spec.unit ? `，单位：${spec.unit}` : ""}`;
   if (dataType === "布尔型(Bool)") return `0：${spec.falseLabel}，1：${spec.trueLabel}`;
   if (dataType === "字符型(String)") return `长度：0~${spec.maxLength}`;
-  if (dataType === "数组型(array)") return `元素类型：${modelDataTypeShortLabel(spec.elementType)}，最大元素数量：${spec.maxItems}`;
+  if (dataType === "数组型(array)") {
+    const elementDefinition = modelDataSpecToDefinition(spec.elementType, spec.elementSpec);
+    return `元素类型：${modelDataTypeShortLabel(spec.elementType)}，最大元素数量：${spec.maxItems}${elementDefinition ? `，元素规则：${elementDefinition}` : ""}`;
+  }
   if (dataType === "时间型(timestamp)") return `Unix ${spec.timestampUnit === "秒(s)" ? "秒" : "毫秒"}时间戳`;
   if (dataType === "结构体(struct)") return spec.fields.length
     ? `字段：${spec.fields.map((field) => `${field.identifier}(${modelDataTypeShortLabel(field.dataType)})`).join("，")}`
@@ -1037,7 +1049,7 @@ function modelDefinitionMeta(dataType) {
     "布尔型(Bool)": ["布尔值定义", "示例：0:关闭, 1:开启"],
     "字符型(String)": ["长度约束", "示例：长度：0~64"],
     "浮点型(float)": ["范围与步长", "示例：范围：0~1，步长：0.01"],
-    "数组型(array)": ["元素定义", "示例：元素类型：String，最大长度：10"],
+    "数组型(array)": ["元素定义", "示例：元素类型：String，最大元素数量：10，元素规则：长度：0~64"],
     "时间型(timestamp)": ["时间格式", "示例：Unix 毫秒时间戳"],
     "结构体(struct)": ["结构定义", "示例：JSON Schema 或字段说明"],
   };
@@ -1108,6 +1120,7 @@ function modelDataSpecValidationError(dataType, dataSpec) {
     if (!items.length || items.some((item) => !item.value || !item.label)) return "请完善枚举值和枚举名称";
     if (new Set(items.map((item) => item.value)).size !== items.length) return "枚举值不能重复";
   } else if (["整数型(Int)", "浮点型(float)"].includes(dataType)) {
+    if ([spec.min, spec.max, spec.step].some((value) => String(value).trim() === "")) return "请填写最小值、最大值和步长";
     const min = Number(spec.min);
     const max = Number(spec.max);
     const step = Number(spec.step);
@@ -1125,6 +1138,8 @@ function modelDataSpecValidationError(dataType, dataSpec) {
     if (!MODEL_ARRAY_ELEMENT_TYPES.includes(spec.elementType)) return "请选择有效的数组元素类型";
     if (!/^\d+$/.test(spec.maxItems) || Number(spec.maxItems) <= 0) return "最大元素数量必须是大于 0 的整数";
     if (Number(spec.maxItems) > 512) return "最大元素数量不能超过 512";
+    const elementError = modelDataSpecValidationError(spec.elementType, spec.elementSpec);
+    if (elementError) return `数组元素：${elementError}`;
   } else if (dataType === "时间型(timestamp)" && !MODEL_TIMESTAMP_UNITS.includes(spec.timestampUnit)) {
     return "请选择时间戳单位";
   } else if (dataType === "结构体(struct)") {
@@ -1143,6 +1158,17 @@ function modelSimpleValueMatches(value, dataType, timestampUnit = "毫秒(ms)") 
   if (dataType === "时间型(timestamp)") return typeof value === "number" && new RegExp(`^\\d{${timestampUnit === "秒(s)" ? 10 : 13}}$`).test(String(value));
   if (dataType === "结构体(struct)") return Boolean(value) && !Array.isArray(value) && typeof value === "object";
   return false;
+}
+
+function modelArrayElementValueError(value, dataType, dataSpec, index) {
+  const position = `第 ${index + 1} 项`;
+  const timestampUnit = dataSpec?.timestampUnit || "毫秒(ms)";
+  if (!modelSimpleValueMatches(value, dataType, timestampUnit)) return `${position}必须符合${dataType}`;
+  const text = dataType === "布尔型(Bool)" && typeof value === "boolean"
+    ? value ? "1" : "0"
+    : String(value);
+  const error = modelDefaultValueError(dataType, text, "", dataSpec);
+  return error ? `${position}：${error}` : "";
 }
 
 function modelDefaultValueError(dataType, defaultValue, definition = "", dataSpecValue = null) {
@@ -1166,7 +1192,10 @@ function modelDefaultValueError(dataType, defaultValue, definition = "", dataSpe
       if (dataType === "数组型(array)") {
         if (!Array.isArray(parsed)) return "数组型默认值必须是 JSON 数组";
         if (parsed.length > Number(dataSpec.maxItems)) return `数组默认值最多包含 ${dataSpec.maxItems} 个元素`;
-        if (parsed.some((item) => !modelSimpleValueMatches(item, dataSpec.elementType))) return `数组元素必须符合${dataSpec.elementType}`;
+        for (const [index, item] of parsed.entries()) {
+          const itemError = modelArrayElementValueError(item, dataSpec.elementType, dataSpec.elementSpec, index);
+          if (itemError) return itemError;
+        }
       } else {
         if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return "结构体默认值必须是 JSON 对象";
         const fields = new Map(dataSpec.fields.map((field) => [field.identifier, field]));
@@ -1217,6 +1246,26 @@ function modelParameterValidationError(parameters, allowDefaultValue) {
     }
   }
   return "";
+}
+
+function modelParameterEditorErrors(editor, value) {
+  const errors = {};
+  if (!value.name) errors.name = "请输入参数名称";
+  else if (value.name.length > 50) errors.name = "参数名称不能超过 50 个字符";
+  if (!value.identifier) errors.identifier = "请输入标识符";
+  else if (value.identifier.length > 50) errors.identifier = "标识符不能超过 50 个字符";
+  else if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(value.identifier)) errors.identifier = "需以字母开头，仅包含字母、数字和下划线";
+  const specError = modelDataSpecValidationError(value.dataType, value.dataSpec);
+  if (specError) errors.dataSpec = specError;
+  if (editor.allowDefaultValue && !value.required) {
+    const defaultError = modelDefaultValueError(value.dataType, value.defaultValue, value.dataDefinition, value.dataSpec);
+    if (defaultError) errors.defaultValue = defaultError;
+  }
+  const duplicate = ["inputParams", "outputParams"]
+    .flatMap((direction) => (state.modal.draft[direction] || []).map((row, index) => ({ row, direction, index })))
+    .some(({ row, direction, index }) => row.identifier === value.identifier && !(direction === editor.direction && index === editor.index));
+  if (duplicate) errors.identifier = state.modal.draft.kind === "service" ? "输入参数和输出参数的标识符不能重复" : "输出参数标识符不能重复";
+  return errors;
 }
 
 function modelRowValidationError(row, kind) {
@@ -1697,6 +1746,24 @@ function createModelDraft(kind = "property", row = null) {
   };
 }
 
+function modelArrayElementSpecEditor(dataSpec, fieldRole, shared = "") {
+  const elementType = dataSpec.elementType;
+  const elementSpec = parseModelDataSpec(elementType, "", dataSpec.elementSpec);
+  const role = `${fieldRole}-element`;
+  const field = (label, key, value, placeholder = "", type = "text", limits = "") => `<label><span>${label}</span><input type="${type}" data-role="${role}"${shared} data-field="${key}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" ${limits}></label>`;
+  let fields = "";
+  if (["整数型(Int)", "浮点型(float)"].includes(elementType)) {
+    fields = `${field("最小值", "min", elementSpec.min, "例如 0", "number")}${field("最大值", "max", elementSpec.max, "例如 100", "number")}${field("步长", "step", elementSpec.step, elementType === "整数型(Int)" ? "例如 1" : "例如 0.1", "number", 'min="0"')}${field("单位（可选）", "unit", elementSpec.unit, "例如 %、℃")}`;
+  } else if (elementType === "布尔型(Bool)") {
+    fields = `${field("布尔值 0", "falseLabel", elementSpec.falseLabel, "例如关闭")}${field("布尔值 1", "trueLabel", elementSpec.trueLabel, "例如开启")}`;
+  } else if (elementType === "字符型(String)") {
+    fields = field("最大长度", "maxLength", elementSpec.maxLength, "例如 64", "number", 'min="1" max="10240"');
+  } else if (elementType === "时间型(timestamp)") {
+    fields = `<label><span>时间戳单位</span><select data-role="${role}"${shared} data-field="timestampUnit">${MODEL_TIMESTAMP_UNITS.map((unit) => `<option value="${unit}" ${unit === elementSpec.timestampUnit ? "selected" : ""}>${unit}</option>`).join("")}</select></label>`;
+  }
+  return `<div class="model-array-element-rules"><div class="model-spec-caption"><strong>元素规则</strong><span>${escapeHtml(modelDataTypeShortLabel(elementType))} 类型约束</span></div><div class="model-spec-grid ${["字符型(String)", "时间型(timestamp)"].includes(elementType) ? "single" : ""}">${fields}</div></div>`;
+}
+
 function modelDataSpecEditor(dataType, dataSpecValue, context = {}) {
   const dataSpec = parseModelDataSpec(dataType, "", dataSpecValue);
   let fieldRole = "modal-model-spec";
@@ -1729,7 +1796,7 @@ function modelDataSpecEditor(dataType, dataSpecValue, context = {}) {
     return `<div class="model-data-spec-editor"><div class="model-spec-caption"><strong>字符串约束</strong><span>长度限制 1~10240</span></div><div class="model-spec-grid single">${field("最大长度", "maxLength", dataSpec.maxLength, "例如 64", "number", 'min="1" max="10240"')}</div></div>`;
   }
   if (dataType === "数组型(array)") {
-    return `<div class="model-data-spec-editor"><div class="model-spec-caption"><strong>数组约束</strong><span>元素数量限制 1~512，暂不支持嵌套结构</span></div><div class="model-spec-grid"><label><span>元素类型</span><select data-role="${fieldRole}"${shared} data-field="elementType">${MODEL_ARRAY_ELEMENT_TYPES.map((type) => `<option value="${type}" ${type === dataSpec.elementType ? "selected" : ""}>${type}</option>`).join("")}</select></label>${field("元素个数上限", "maxItems", dataSpec.maxItems, "例如 10", "number", 'min="1" max="512"')}</div></div>`;
+    return `<div class="model-data-spec-editor model-array-spec-editor"><div class="model-spec-caption"><strong>数组约束</strong><span>元素数量限制 1~512</span></div><div class="model-spec-grid"><label><span>元素类型</span><select data-role="${fieldRole}"${shared} data-field="elementType">${MODEL_ARRAY_ELEMENT_TYPES.map((type) => `<option value="${type}" ${type === dataSpec.elementType ? "selected" : ""}>${type}</option>`).join("")}</select></label>${field("元素个数上限", "maxItems", dataSpec.maxItems, "例如 10", "number", 'min="1" max="512"')}</div>${modelArrayElementSpecEditor(dataSpec, fieldRole, shared)}</div>`;
   }
   if (dataType === "时间型(timestamp)") {
     return `<div class="model-data-spec-editor"><div class="model-spec-caption"><strong>时间格式</strong><span>使用 Unix UTC 时间戳</span></div><div class="model-spec-grid single"><label><span>时间戳单位</span><select data-role="${fieldRole}"${shared} data-field="timestampUnit">${MODEL_TIMESTAMP_UNITS.map((unit) => `<option value="${unit}" ${unit === dataSpec.timestampUnit ? "selected" : ""}>${unit}</option>`).join("")}</select></label></div></div>`;
@@ -1753,33 +1820,101 @@ function modelParameterEditor(label, direction, values, allowDefaultValue = fals
   return `<section class="model-param-group"><div class="model-param-head"><div><strong>${label}</strong><span>${values.length} 项</span></div><button type="button" class="btn btn-text" data-action="model-param-add" data-param="${direction}" data-allow-default="${allowDefaultValue}">＋ 添加参数</button></div>${values.length ? `<div class="model-param-summary-list">${values.map((value, index) => `<div class="model-param-summary-row"><div class="model-param-identity"><strong>${escapeHtml(value.name || "未命名参数")}</strong><code>${escapeHtml(value.identifier || "未填写标识符")}</code></div><div class="model-param-type"><span>${escapeHtml(value.dataType)}</span><small>${escapeHtml(value.dataDefinition || "待完善数据定义")}</small></div><span class="model-param-rule">${escapeHtml(modelParameterSummary(value, allowDefaultValue))}</span><div class="model-param-actions"><button type="button" class="btn btn-text" data-action="model-param-edit" data-param="${direction}" data-index="${index}" data-allow-default="${allowDefaultValue}">编辑</button><button type="button" class="btn btn-text danger-text" data-action="model-param-remove" data-param="${direction}" data-index="${index}">删除</button></div></div>`).join("")}</div>` : `<div class="model-param-empty">暂无参数</div>`}</section>`;
 }
 
-function modelCountedField(label, roleName, value, placeholder, required = true, maxLength = 50) {
-  return `<div class="form-row model-counted-field ${required ? "required" : ""}"><label>${label}</label><div><input data-role="${roleName}" maxlength="${maxLength}" value="${escapeHtml(value)}" placeholder="${placeholder}"><small class="field-counter">${String(value || "").length} / ${maxLength}</small></div></div>`;
+function modelFieldError(message) {
+  return message ? `<small class="model-field-error">${escapeHtml(message)}</small>` : "";
 }
 
-function modelDefaultValueField(roleName, value, dataType, placeholder) {
+function modelCountedField(label, roleName, value, placeholder, required = true, maxLength = 50, error = "") {
+  return `<div class="form-row model-counted-field ${required ? "required" : ""} ${error ? "has-error" : ""}"><label>${label}</label><div><input data-role="${roleName}" maxlength="${maxLength}" value="${escapeHtml(value)}" placeholder="${placeholder}" ${error ? 'aria-invalid="true"' : ""}><small class="field-counter">${String(value || "").length} / ${maxLength}</small>${modelFieldError(error)}</div></div>`;
+}
+
+function modelDefaultValueField(roleName, value, dataType, placeholder, error = "") {
   const maxLength = 10240;
   const text = String(value || "");
   const input = ["数组型(array)", "结构体(struct)"].includes(dataType)
-    ? `<textarea data-role="${roleName}" maxlength="${maxLength}" placeholder="${placeholder}">${escapeHtml(text)}</textarea>`
-    : `<input data-role="${roleName}" maxlength="${maxLength}" value="${escapeHtml(text)}" placeholder="${placeholder}">`;
-  return `<div class="form-row model-counted-field"><label>默认值（可选）</label><div>${input}<small class="field-counter">${text.length} / ${maxLength}</small></div></div>`;
+    ? `<textarea data-role="${roleName}" maxlength="${maxLength}" placeholder="${placeholder}" ${error ? 'aria-invalid="true"' : ""}>${escapeHtml(text)}</textarea>`
+    : `<input data-role="${roleName}" maxlength="${maxLength}" value="${escapeHtml(text)}" placeholder="${placeholder}" ${error ? 'aria-invalid="true"' : ""}>`;
+  return `<div class="form-row model-counted-field ${error ? "has-error" : ""}"><label>默认值（可选）</label><div>${input}<small class="field-counter">${text.length} / ${maxLength}</small>${modelFieldError(error)}</div></div>`;
+}
+
+function parsedArrayDefaultValue(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return { configured: false, items: [], invalid: false };
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed)
+      ? { configured: true, items: parsed, invalid: false }
+      : { configured: true, items: [], invalid: true };
+  } catch {
+    return { configured: true, items: [], invalid: true };
+  }
+}
+
+function modelArrayDefaultItemInput(item, elementType, elementSpec, index) {
+  const shared = ` data-role="model-array-default-item" data-index="${index}"`;
+  if (elementType === "布尔型(Bool)") {
+    const normalized = item === true ? 1 : item === false ? 0 : Number(item) === 1 ? 1 : 0;
+    return `<select${shared}><option value="0" ${normalized === 0 ? "selected" : ""}>0 · ${escapeHtml(elementSpec.falseLabel || "关闭")}</option><option value="1" ${normalized === 1 ? "selected" : ""}>1 · ${escapeHtml(elementSpec.trueLabel || "开启")}</option></select>`;
+  }
+  const isNumber = ["整数型(Int)", "浮点型(float)", "时间型(timestamp)"].includes(elementType);
+  const attributes = ["整数型(Int)", "浮点型(float)"].includes(elementType)
+    ? ` min="${escapeHtml(elementSpec.min)}" max="${escapeHtml(elementSpec.max)}" step="${escapeHtml(elementSpec.step || "any")}"`
+    : elementType === "字符型(String)" ? ` maxlength="${escapeHtml(elementSpec.maxLength || 10240)}"` : ' step="1"';
+  const placeholder = elementType === "时间型(timestamp)"
+    ? elementSpec.timestampUnit === "秒(s)" ? "10 位秒级时间戳" : "13 位毫秒级时间戳"
+    : "请输入元素值";
+  return `<input type="${isNumber ? "number" : "text"}"${shared}${attributes} value="${escapeHtml(item ?? "")}" placeholder="${placeholder}">`;
+}
+
+function modelArrayDefaultEditor(draft, error = "") {
+  const parsed = parsedArrayDefaultValue(draft.defaultValue);
+  const elementSpec = parseModelDataSpec(draft.dataSpec.elementType, "", draft.dataSpec.elementSpec);
+  const status = parsed.configured ? parsed.items.length ? `${parsed.items.length} 项` : "空数组" : "未配置";
+  const rows = parsed.items.map((item, index) => `<div class="model-array-default-row"><span>${index + 1}</span>${modelArrayDefaultItemInput(item, draft.dataSpec.elementType, elementSpec, index)}<button type="button" class="model-param-delete" data-action="model-array-default-remove" data-index="${index}" title="删除元素" aria-label="删除元素">×</button></div>`).join("");
+  return `<div class="model-array-default-editor ${error ? "has-error" : ""}"><div class="model-array-default-head"><div><strong>默认值（可选）</strong><span>${status}</span></div><div>${parsed.configured ? `<button type="button" class="btn btn-text danger-text" data-action="model-array-default-clear">清除默认值</button>` : `<button type="button" class="btn btn-text" data-action="model-array-default-empty">设为空数组</button>`}<button type="button" class="btn btn-text" data-action="model-array-default-add">＋ 添加元素</button></div></div>${parsed.invalid ? `<div class="model-array-default-empty error-copy">原默认值格式无法解析，请清除后重新配置。</div>` : rows || `<div class="model-array-default-empty">${parsed.configured ? "已配置为空数组" : "暂未配置默认值"}</div>`}${modelFieldError(error)}</div>`;
 }
 
 function modelChoiceField(label, action, value, options) {
   return `<div class="form-row required"><label>${label}</label><div class="model-type-switch model-choice-switch">${options.map((option) => `<button type="button" class="${value === option ? "active" : ""}" data-action="${action}" data-value="${option}">${option}</button>`).join("")}</div></div>`;
 }
 
+function modelParameterConfirm(title, message, cancelAction, confirmAction, confirmLabel = "确认") {
+  return `<div class="model-param-subconfirm" role="alertdialog" aria-modal="true" aria-label="${escapeHtml(title)}"><div class="model-param-subconfirm-panel"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(message)}</p><div><button type="button" class="btn" data-action="${cancelAction}">继续编辑</button><button type="button" class="btn btn-danger" data-action="${confirmAction}">${escapeHtml(confirmLabel)}</button></div></div></div>`;
+}
+
 function modelParameterDialog(modal) {
   const editor = modal.paramEditor;
   if (!editor) return "";
   const draft = editor.draft;
+  const errors = editor.errors || {};
   const defaultField = editor.allowDefaultValue
     ? draft.required
       ? `<div class="model-inline-note">必填参数由调用方传值，不配置默认值。</div>`
-      : modelDefaultValueField("model-param-dialog-default", draft.defaultValue, draft.dataType, "未传入参数时使用")
+      : draft.dataType === "数组型(array)"
+        ? modelArrayDefaultEditor(draft, errors.defaultValue)
+        : modelDefaultValueField("model-param-dialog-default", draft.defaultValue, draft.dataType, "未传入参数时使用", errors.defaultValue)
     : "";
-  return `<div class="model-param-dialog-backdrop" data-action="model-param-dialog-close"><section class="model-param-dialog" role="dialog" aria-modal="true" aria-label="${Number.isInteger(editor.index) ? "编辑参数" : "添加参数"}"><div class="modal-header"><div><h2>${Number.isInteger(editor.index) ? "编辑参数" : "添加参数"}</h2><span>${editor.direction === "inputParams" ? "输入参数" : "输出参数"}</span></div><button class="modal-close" data-action="model-param-dialog-close" title="关闭">×</button></div><div class="modal-body">${editor.typeResetNotice ? `<div class="warning-strip model-reset-warning">数据类型已切换，原数据定义和默认值已重置。</div>` : ""}<div class="modal-form model-param-dialog-form">${modelCountedField("参数名称", "model-param-dialog-name", draft.name, "请输入参数名称", true, 50)}${modelCountedField("标识符", "model-param-dialog-identifier", draft.identifier, "请输入英文标识符", true, 50)}${selectField("数据类型", "model-param-dialog-data-type", MODEL_DATA_TYPES, draft.dataType, true)}${modelDataSpecEditor(draft.dataType, draft.dataSpec, { scope: "parameter-dialog" })}${editor.allowDefaultValue ? modelChoiceField("是否必填", "model-param-required", draft.required ? "必填" : "可选", ["必填", "可选"]) : ""}${defaultField}</div></div><div class="modal-footer"><button class="btn" data-action="model-param-dialog-close">取消</button><button class="btn btn-primary" data-action="model-param-save">完成</button></div></section></div>`;
+  const changeConfirm = editor.changeConfirm
+    ? modelParameterConfirm(
+        editor.changeConfirm.kind === "elementType" ? "确认切换元素类型" : "确认切换数据类型",
+        editor.changeConfirm.kind === "elementType" ? "切换后将清除当前元素规则和数组默认值。" : "切换后将清除当前数据定义和默认值。",
+        "model-param-change-cancel",
+        "model-param-change-confirm",
+        "确认切换",
+      )
+    : "";
+  const requiredConfirm = editor.requiredConfirm
+    ? modelParameterConfirm("确认切换为必填", "切换后将清除已经配置的默认值。", "model-param-required-cancel", "model-param-required-confirm", "切换并清除")
+    : "";
+  const closeConfirm = editor.closeConfirm
+    ? modelParameterConfirm("放弃本次编辑？", "当前参数存在未保存的修改，关闭后将无法恢复。", "model-param-discard-return", "model-param-discard-confirm", "放弃修改")
+    : "";
+  const resetNotice = editor.typeResetNotice
+    ? `<div class="warning-strip model-reset-warning">数据类型已切换，原数据定义和默认值已重置。</div>`
+    : editor.elementResetNotice
+      ? `<div class="warning-strip model-reset-warning">数组元素类型已切换，原元素规则和默认值已重置。</div>`
+      : "";
+  return `<div class="model-param-dialog-backdrop" data-action="model-param-dialog-close"><section class="model-param-dialog" role="dialog" aria-modal="true" aria-label="${Number.isInteger(editor.index) ? "编辑参数" : "添加参数"}"><div class="modal-header"><div><h2>${Number.isInteger(editor.index) ? "编辑参数" : "添加参数"}</h2><span>${editor.direction === "inputParams" ? "输入参数" : "输出参数"}</span></div><button class="modal-close" data-action="model-param-dialog-close" title="关闭">×</button></div><div class="modal-body">${resetNotice}<div class="modal-form model-param-dialog-form">${modelCountedField("参数名称", "model-param-dialog-name", draft.name, "请输入参数名称", true, 50, errors.name)}${modelCountedField("标识符", "model-param-dialog-identifier", draft.identifier, "请输入英文标识符", true, 50, errors.identifier)}${selectField("数据类型", "model-param-dialog-data-type", MODEL_DATA_TYPES, draft.dataType, true)}<div class="model-spec-validation ${errors.dataSpec ? "has-error" : ""}">${modelDataSpecEditor(draft.dataType, draft.dataSpec, { scope: "parameter-dialog" })}${modelFieldError(errors.dataSpec)}</div>${editor.allowDefaultValue ? modelChoiceField("是否必填", "model-param-required", draft.required ? "必填" : "可选", ["必填", "可选"]) : ""}${defaultField}</div></div><div class="modal-footer"><button class="btn" data-action="model-param-dialog-close">取消</button><button class="btn btn-primary" data-action="model-param-save">完成</button></div>${changeConfirm}${requiredConfirm}${closeConfirm}</section></div>`;
 }
 
 function modelFormBody(modal) {
@@ -2258,12 +2393,52 @@ function modelEditorOwner(target) {
   return state.modal?.draft || null;
 }
 
+function modelSpecHasConfiguration(dataType, dataSpec) {
+  return JSON.stringify(parseModelDataSpec(dataType, "", dataSpec)) !== JSON.stringify(defaultModelDataSpec(dataType));
+}
+
+function applyModelParameterTypeChange(editor, dataType) {
+  editor.draft.dataType = dataType;
+  editor.draft.dataSpec = defaultModelDataSpec(dataType);
+  editor.draft.defaultValue = "";
+  editor.draft.dataDefinition = modelDataSpecToDefinition(dataType, editor.draft.dataSpec);
+  editor.dirty = true;
+  editor.errors = {};
+}
+
+function applyArrayElementTypeChange(editor, elementType) {
+  editor.draft.dataSpec.elementType = elementType;
+  editor.draft.dataSpec.elementSpec = defaultModelDataSpec(elementType);
+  editor.draft.defaultValue = "";
+  editor.draft.dataDefinition = modelDataSpecToDefinition(editor.draft.dataType, editor.draft.dataSpec);
+  editor.dirty = true;
+  if (editor.errors) {
+    delete editor.errors.dataSpec;
+    delete editor.errors.defaultValue;
+  }
+}
+
+function setArrayDefaultItems(editor, items, configured = true) {
+  editor.draft.defaultValue = configured ? JSON.stringify(items) : "";
+  editor.dirty = true;
+  if (editor.errors) delete editor.errors.defaultValue;
+}
+
+function clearVisibleModelFieldError(target) {
+  const container = target.closest?.(".has-error");
+  if (!container) return;
+  container.classList.remove("has-error");
+  container.querySelectorAll(":scope > .model-field-error, :scope > div > .model-field-error").forEach((node) => node.remove());
+  target.removeAttribute?.("aria-invalid");
+}
+
 function syncModelDraftInput(target) {
   if (state.modal?.type !== "model-form") return false;
   const markDirty = () => { state.modal.dirty = true; };
   const syncDefinition = (owner) => { owner.dataDefinition = modelDataSpecToDefinition(owner.dataType, owner.dataSpec); };
   const counter = target.closest?.(".model-counted-field")?.querySelector(".field-counter");
   if (counter && target.maxLength > 0) counter.textContent = `${target.value.length} / ${target.maxLength}`;
+  if (target.closest?.(".model-param-dialog")) clearVisibleModelFieldError(target);
   if (target.matches('[data-role^="model-param-dialog-"]:not([data-role="model-param-dialog-spec"]):not([data-role="model-param-dialog-enum"])')) {
     const editor = state.modal.paramEditor;
     if (!editor) return false;
@@ -2276,29 +2451,74 @@ function syncModelDraftInput(target) {
     const field = fieldMap[target.dataset.role];
     if (!field) return false;
     if (field === "dataType" && editor.draft.dataType !== target.value) {
-      editor.draft.dataType = target.value;
-      editor.draft.dataSpec = defaultModelDataSpec(target.value);
-      editor.draft.defaultValue = "";
-      syncDefinition(editor.draft);
-      editor.typeResetNotice = true;
+      if (editor.changeConfirm?.kind === "dataType" && editor.changeConfirm.value === target.value) return true;
+      if (modelSpecHasConfiguration(editor.draft.dataType, editor.draft.dataSpec) || editor.draft.defaultValue !== "") {
+        editor.changeConfirm = { kind: "dataType", value: target.value };
+      } else {
+        applyModelParameterTypeChange(editor, target.value);
+        editor.typeResetNotice = false;
+      }
     } else {
       editor.draft[field] = target.value;
+      editor.dirty = true;
+      if (editor.errors) delete editor.errors[field === "defaultValue" ? "defaultValue" : field];
     }
     return true;
   }
   if (target.matches('[data-role="model-param-dialog-spec"]')) {
     const parameter = state.modal.paramEditor?.draft;
+    const editor = state.modal.paramEditor;
     if (!parameter || !target.dataset.field) return false;
+    if (target.dataset.field === "elementType" && parameter.dataSpec.elementType !== target.value) {
+      if (editor.changeConfirm?.kind === "elementType" && editor.changeConfirm.value === target.value) return true;
+      const currentElementType = parameter.dataSpec.elementType;
+      if (modelSpecHasConfiguration(currentElementType, parameter.dataSpec.elementSpec) || parameter.defaultValue !== "") {
+        editor.changeConfirm = { kind: "elementType", value: target.value };
+      } else {
+        applyArrayElementTypeChange(editor, target.value);
+      }
+      return true;
+    }
     parameter.dataSpec[target.dataset.field] = target.value;
     syncDefinition(parameter);
+    editor.dirty = true;
+    if (editor.errors) delete editor.errors.dataSpec;
+    return true;
+  }
+  if (target.matches('[data-role="model-param-dialog-spec-element"]')) {
+    const editor = state.modal.paramEditor;
+    const parameter = editor?.draft;
+    if (!parameter?.dataSpec?.elementSpec || !target.dataset.field) return false;
+    parameter.dataSpec.elementSpec[target.dataset.field] = target.value;
+    syncDefinition(parameter);
+    editor.dirty = true;
+    if (editor.errors) delete editor.errors.dataSpec;
     return true;
   }
   if (target.matches('[data-role="model-param-dialog-enum"]')) {
+    const editor = state.modal.paramEditor;
     const parameter = state.modal.paramEditor?.draft;
     const enumItem = parameter?.dataSpec?.enumItems?.[Number(target.dataset.enumIndex)];
     if (!enumItem || !target.dataset.field) return false;
     enumItem[target.dataset.field] = target.value;
     syncDefinition(parameter);
+    editor.dirty = true;
+    if (editor.errors) delete editor.errors.dataSpec;
+    return true;
+  }
+  if (target.matches('[data-role="model-array-default-item"]')) {
+    const editor = state.modal.paramEditor;
+    if (!editor?.draft || editor.draft.dataType !== "数组型(array)") return false;
+    const parsed = parsedArrayDefaultValue(editor.draft.defaultValue);
+    const elementType = editor.draft.dataSpec.elementType;
+    const index = Number(target.dataset.index);
+    if (parsed.invalid || !parsed.configured || !Number.isInteger(index) || index < 0 || index >= parsed.items.length) return false;
+    parsed.items[index] = elementType === "字符型(String)"
+      ? target.value
+      : elementType === "布尔型(Bool)"
+        ? Number(target.value)
+        : target.value === "" ? null : Number(target.value);
+    setArrayDefaultItems(editor, parsed.items);
     return true;
   }
   if (target.matches('[data-role="model-struct-field"]')) {
@@ -2313,6 +2533,7 @@ function syncModelDraftInput(target) {
       field[target.dataset.field] = target.value;
     }
     syncDefinition(owner);
+    if (target.dataset.owner === "parameter-dialog") state.modal.paramEditor.dirty = true;
     if (target.dataset.owner === "property") markDirty();
     return true;
   }
@@ -2323,6 +2544,7 @@ function syncModelDraftInput(target) {
     field.dataSpec[target.dataset.field] = target.value;
     syncDefinition(field);
     syncDefinition(owner);
+    if (target.dataset.owner === "parameter-dialog") state.modal.paramEditor.dirty = true;
     if (target.dataset.owner === "property") markDirty();
     return true;
   }
@@ -2334,6 +2556,7 @@ function syncModelDraftInput(target) {
     enumItem[target.dataset.field] = target.value;
     syncDefinition(field);
     syncDefinition(owner);
+    if (target.dataset.owner === "parameter-dialog") state.modal.paramEditor.dirty = true;
     if (target.dataset.owner === "property") markDirty();
     return true;
   }
@@ -2374,7 +2597,20 @@ function syncModelDraftInput(target) {
     return true;
   }
   if (target.matches('[data-role="modal-model-spec"]')) {
-    state.modal.draft.dataSpec[target.dataset.field] = target.value;
+    if (target.dataset.field === "elementType" && state.modal.draft.dataSpec.elementType !== target.value) {
+      state.modal.draft.dataSpec.elementType = target.value;
+      state.modal.draft.dataSpec.elementSpec = defaultModelDataSpec(target.value);
+      state.modal.draft.defaultValue = "";
+    } else {
+      state.modal.draft.dataSpec[target.dataset.field] = target.value;
+    }
+    syncDefinition(state.modal.draft);
+    markDirty();
+    return true;
+  }
+  if (target.matches('[data-role="modal-model-spec-element"]')) {
+    if (!state.modal.draft.dataSpec?.elementSpec || !target.dataset.field) return false;
+    state.modal.draft.dataSpec.elementSpec[target.dataset.field] = target.value;
     syncDefinition(state.modal.draft);
     markDirty();
     return true;
@@ -2985,7 +3221,7 @@ document.addEventListener("click", (event) => {
   }
   else if (action === "model-param-add") {
     const allowDefaultValue = target.dataset.allowDefault === "true";
-    state.modal.paramEditor = { direction: target.dataset.param, allowDefaultValue, draft: createModelParameterDraft(null, allowDefaultValue) };
+    state.modal.paramEditor = { direction: target.dataset.param, allowDefaultValue, draft: createModelParameterDraft(null, allowDefaultValue), dirty: false, errors: {} };
     render();
     return;
   }
@@ -2995,7 +3231,7 @@ document.addEventListener("click", (event) => {
     const allowDefaultValue = target.dataset.allowDefault === "true";
     const row = state.modal.draft[direction]?.[index];
     if (!row) return;
-    state.modal.paramEditor = { direction, index, allowDefaultValue, draft: createModelParameterDraft(row, allowDefaultValue) };
+    state.modal.paramEditor = { direction, index, allowDefaultValue, draft: createModelParameterDraft(row, allowDefaultValue), dirty: false, errors: {} };
     render();
     return;
   }
@@ -3003,13 +3239,89 @@ document.addEventListener("click", (event) => {
   else if (action === "model-param-required") {
     const editor = state.modal.paramEditor;
     if (!editor) return;
-    editor.draft.required = target.dataset.value === "必填";
-    if (editor.draft.required) editor.draft.defaultValue = "";
+    const nextRequired = target.dataset.value === "必填";
+    if (nextRequired === editor.draft.required) return;
+    if (nextRequired && editor.draft.defaultValue !== "") {
+      editor.requiredConfirm = true;
+      render();
+      return;
+    }
+    editor.draft.required = nextRequired;
+    editor.dirty = true;
+    if (editor.errors) delete editor.errors.defaultValue;
+    render();
+    return;
+  }
+  else if (action === "model-param-required-cancel") { state.modal.paramEditor.requiredConfirm = false; render(); return; }
+  else if (action === "model-param-required-confirm") {
+    const editor = state.modal.paramEditor;
+    editor.draft.required = true;
+    editor.draft.defaultValue = "";
+    editor.requiredConfirm = false;
+    editor.dirty = true;
+    if (editor.errors) delete editor.errors.defaultValue;
+    render();
+    return;
+  }
+  else if (action === "model-param-change-cancel") { state.modal.paramEditor.changeConfirm = null; render(); return; }
+  else if (action === "model-param-change-confirm") {
+    const editor = state.modal.paramEditor;
+    const pending = editor.changeConfirm;
+    if (!pending) return;
+    if (pending.kind === "elementType") {
+      applyArrayElementTypeChange(editor, pending.value);
+      editor.elementResetNotice = true;
+      editor.typeResetNotice = false;
+    } else {
+      applyModelParameterTypeChange(editor, pending.value);
+      editor.typeResetNotice = true;
+      editor.elementResetNotice = false;
+    }
+    editor.changeConfirm = null;
     render();
     return;
   }
   else if (action === "model-param-dialog-close") {
+    const editor = state.modal.paramEditor;
+    if (editor?.dirty) {
+      editor.closeConfirm = true;
+      render();
+      return;
+    }
     state.modal.paramEditor = null;
+    render();
+    return;
+  }
+  else if (action === "model-param-discard-return") { state.modal.paramEditor.closeConfirm = false; render(); return; }
+  else if (action === "model-param-discard-confirm") { state.modal.paramEditor = null; render(); return; }
+  else if (action === "model-array-default-empty") {
+    setArrayDefaultItems(state.modal.paramEditor, []);
+    render();
+    return;
+  }
+  else if (action === "model-array-default-clear") {
+    setArrayDefaultItems(state.modal.paramEditor, [], false);
+    render();
+    return;
+  }
+  else if (action === "model-array-default-add") {
+    const editor = state.modal.paramEditor;
+    const parsed = parsedArrayDefaultValue(editor.draft.defaultValue);
+    const items = parsed.invalid ? [] : [...parsed.items];
+    const maxItems = Number(editor.draft.dataSpec.maxItems);
+    const effectiveLimit = Number.isInteger(maxItems) && maxItems > 0 ? Math.min(maxItems, 512) : 512;
+    if (items.length >= effectiveLimit) return showToast(`默认值最多可添加 ${effectiveLimit} 个元素`, "error", false);
+    const elementType = editor.draft.dataSpec.elementType;
+    items.push(elementType === "布尔型(Bool)" ? 0 : elementType === "字符型(String)" ? "" : null);
+    setArrayDefaultItems(editor, items);
+    render();
+    return;
+  }
+  else if (action === "model-array-default-remove") {
+    const editor = state.modal.paramEditor;
+    const parsed = parsedArrayDefaultValue(editor.draft.defaultValue);
+    if (!parsed.invalid) parsed.items.splice(Number(target.dataset.index), 1);
+    setArrayDefaultItems(editor, parsed.items);
     render();
     return;
   }
@@ -3017,10 +3329,13 @@ document.addEventListener("click", (event) => {
     const editor = state.modal.paramEditor;
     if (!editor) return;
     const value = normalizeModelParameterList([editor.draft], editor.allowDefaultValue)[0];
-    const validationError = modelParameterValidationError([value], editor.allowDefaultValue);
-    if (validationError) return showToast(validationError, "error", false);
-    const duplicate = ["inputParams", "outputParams"].flatMap((direction) => (state.modal.draft[direction] || []).map((row, index) => ({ row, direction, index }))).some(({ row, direction, index }) => row.identifier === value.identifier && !(direction === editor.direction && index === editor.index));
-    if (duplicate) return showToast(state.modal.draft.kind === "service" ? "输入参数和输出参数的标识符不能重复" : "输出参数标识符不能重复", "error", false);
+    const errors = modelParameterEditorErrors(editor, value);
+    if (Object.keys(errors).length) {
+      editor.errors = errors;
+      render();
+      document.querySelector('.model-param-dialog [aria-invalid="true"], .model-param-dialog .has-error input, .model-param-dialog .has-error select')?.focus();
+      return;
+    }
     const collection = state.modal.draft[editor.direction];
     if (Number.isInteger(editor.index)) collection.splice(editor.index, 1, value);
     else collection.push(value);
@@ -3036,6 +3351,7 @@ document.addEventListener("click", (event) => {
     const dataSpec = defaultModelDataSpec(dataType);
     owner.dataSpec.fields.push({ name: "", identifier: "", dataType, dataSpec, dataDefinition: modelDataSpecToDefinition(dataType, dataSpec) });
     owner.dataDefinition = modelDataSpecToDefinition(owner.dataType, owner.dataSpec);
+    if (target.dataset.owner === "parameter-dialog") state.modal.paramEditor.dirty = true;
     if (target.dataset.owner === "property") state.modal.dirty = true;
     render();
     return;
@@ -3045,6 +3361,7 @@ document.addEventListener("click", (event) => {
     if (!owner?.dataSpec?.fields) return;
     owner.dataSpec.fields.splice(Number(target.dataset.structIndex), 1);
     owner.dataDefinition = modelDataSpecToDefinition(owner.dataType, owner.dataSpec);
+    if (target.dataset.owner === "parameter-dialog") state.modal.paramEditor.dirty = true;
     if (target.dataset.owner === "property") state.modal.dirty = true;
     render();
     return;
@@ -3056,6 +3373,7 @@ document.addEventListener("click", (event) => {
     else if (owner.dataSpec.enumItems.length > 1) owner.dataSpec.enumItems.splice(Number(target.dataset.enumIndex), 1);
     else owner.dataSpec.enumItems[0] = { value: "", label: "" };
     owner.dataDefinition = modelDataSpecToDefinition(owner.dataType, owner.dataSpec);
+    if (target.dataset.scope === "parameter-dialog") state.modal.paramEditor.dirty = true;
     if (!["parameter-dialog", "struct-field"].includes(target.dataset.scope) || target.dataset.owner === "property") state.modal.dirty = true;
     if (target.dataset.scope === "struct-field") {
       const structOwner = modelStructOwner(target.dataset.owner);

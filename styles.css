@@ -2496,6 +2496,26 @@ textarea:focus-visible {
   text-align: right;
 }
 
+.model-field-error {
+  display: block;
+  margin-top: 6px;
+  color: #d92d20;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.has-error input,
+.has-error select,
+.has-error textarea,
+.model-spec-validation.has-error .model-data-spec-editor {
+  border-color: #f04438;
+}
+
+.model-spec-validation > .model-field-error {
+  margin-left: 110px;
+  padding: 0 12px;
+}
+
 .model-spec-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2522,13 +2542,25 @@ textarea:focus-visible {
 .model-spec-grid input,
 .model-spec-grid select,
 .model-param-default input,
-.model-enum-row input {
+.model-enum-row input,
+.model-array-default-row input,
+.model-array-default-row select {
   width: 100%;
   min-width: 0;
   height: 34px;
   padding: 0 10px;
   border: 1px solid #dce1e8;
   background: #fff;
+}
+
+.model-array-element-rules {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e7ee;
+}
+
+.model-array-element-rules .model-spec-caption {
+  margin-bottom: 8px;
 }
 
 .model-enum-list {
@@ -2713,6 +2745,7 @@ textarea:focus-visible {
 }
 
 .model-param-dialog {
+  position: relative;
   width: min(680px, calc(100vw - 32px));
   max-height: min(820px, calc(100vh - 48px));
   display: flex;
@@ -2743,8 +2776,114 @@ textarea:focus-visible {
 }
 
 .model-param-dialog .model-data-spec-editor,
-.model-param-dialog .model-inline-note {
+.model-param-dialog .model-inline-note,
+.model-param-dialog .model-array-default-editor {
   margin-left: 110px;
+}
+
+.model-array-default-editor {
+  padding: 12px;
+  border: 1px solid #dfe5ed;
+  background: #f8fafc;
+}
+
+.model-array-default-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.model-array-default-head > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.model-array-default-head strong {
+  color: #344054;
+  font-size: 13px;
+}
+
+.model-array-default-head span {
+  color: #7b8492;
+  font-size: 12px;
+}
+
+.model-array-default-head > div:last-child {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.model-array-default-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.model-array-default-row > span {
+  color: #7b8492;
+  font-size: 12px;
+  text-align: center;
+}
+
+.model-array-default-empty {
+  min-height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #d9dfe8;
+  color: #9199a5;
+  background: #fff;
+  font-size: 13px;
+}
+
+.model-array-default-empty.error-copy {
+  border-color: #f4b4ae;
+  color: #d92d20;
+  background: #fff8f7;
+}
+
+.model-param-subconfirm {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(22, 29, 38, 0.48);
+}
+
+.model-param-subconfirm-panel {
+  width: min(420px, 100%);
+  padding: 22px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 16px 38px rgba(17, 25, 38, 0.24);
+}
+
+.model-param-subconfirm-panel h3 {
+  margin: 0 0 10px;
+  color: #1d2939;
+  font-size: 16px;
+}
+
+.model-param-subconfirm-panel p {
+  margin: 0;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.model-param-subconfirm-panel > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
 }
 
 .model-struct-list {
@@ -3744,8 +3883,17 @@ textarea:focus-visible {
 
   .model-param-group,
   .model-data-spec-editor,
-  .model-inline-note {
+  .model-inline-note,
+  .model-param-dialog .model-data-spec-editor,
+  .model-param-dialog .model-inline-note,
+  .model-param-dialog .model-array-default-editor,
+  .model-spec-validation > .model-field-error {
     margin-left: 0;
+  }
+
+  .model-array-default-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .model-param-fields,
