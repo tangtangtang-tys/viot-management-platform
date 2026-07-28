@@ -335,7 +335,7 @@ const state = {
   functionDraftImage: "",
   machineDraftImage: "",
   modelTab: "model",
-  modelKindTab: "property",
+  modelKindTab: "all",
   functionReferenceSearch: "",
   functionReferencePage: 1,
   modelSpecs: initialModelSpecs,
@@ -1094,7 +1094,7 @@ function normalizeModelSpecData(spec) {
     const dataSpec = parseModelDataSpec(dataType, row.dataDefinition, row.dataSpec);
     const access = ["只读", "读写", "只写"].includes(row.access) ? row.access : "只读";
     const sourceDefaultValue = row.defaultValue === undefined || row.defaultValue === null ? "" : String(row.defaultValue);
-    const hasDefaultValue = access !== "只读" && Boolean(row.hasDefaultValue ?? sourceDefaultValue !== "");
+    const hasDefaultValue = access === "读写" && Boolean(row.hasDefaultValue ?? sourceDefaultValue !== "");
     return {
       ...row,
       dataType,
@@ -1294,7 +1294,7 @@ function modelRowValidationError(row, kind) {
   if (kind === "property") {
     const specError = modelDataSpecValidationError(row.dataType, row.dataSpec);
     if (specError) return specError;
-    if (row.access === "只读" && row.hasDefaultValue) return "只读属性不能配置默认值";
+    if (row.access !== "读写" && row.hasDefaultValue) return "仅读写属性支持配置默认值";
     return modelConfiguredDefaultValueError(row.dataType, row.defaultValue, row.dataDefinition, row.dataSpec, row.hasDefaultValue, row._defaultValuePending);
   }
   if (kind === "service") {
@@ -1325,6 +1325,8 @@ function modelImportShapeError(parsed) {
       if (kind === "property") {
         if (!MODEL_DATA_TYPES.includes(row.dataType)) return `属性“${row.name || index + 1}”的数据类型不支持`;
         if (row.access !== undefined && !["只读", "读写", "只写"].includes(row.access)) return `属性“${row.name || index + 1}”的访问权限不支持`;
+        const hasImportedDefault = row.hasDefaultValue === true || (row.defaultValue !== undefined && row.defaultValue !== null && String(row.defaultValue) !== "");
+        if ((row.access || "只读") !== "读写" && hasImportedDefault) return `属性“${row.name || index + 1}”只有读写权限才支持默认值`;
       }
       if (kind === "service" && row.callType !== undefined && !["同步", "异步"].includes(row.callType)) return `服务“${row.name || index + 1}”的调用方式不支持`;
       const parameterGroups = kind === "service" ? [["inputParams", row.inputParams], ["outputParams", row.outputParams]] : kind === "event" ? [["outputParams", row.outputParams]] : [];
@@ -1408,6 +1410,123 @@ function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function modelImportDataSpecPayload(dataType, dataSpec) {
+  const spec = parseModelDataSpec(dataType, "", dataSpec);
+  if (dataType === "枚举型(Enum)") return { enumItems: spec.enumItems.map((item) => ({ value: item.value, label: item.label })) };
+  if (["整数型(Int)", "浮点型(float)"].includes(dataType)) return { min: spec.min, max: spec.max, step: spec.step, unit: spec.unit };
+  if (dataType === "布尔型(Bool)") return { falseLabel: spec.falseLabel, trueLabel: spec.trueLabel };
+  if (dataType === "字符型(String)") return { maxLength: spec.maxLength };
+  if (dataType === "数组型(array)") {
+    return {
+      elementType: spec.elementType,
+      maxItems: spec.maxItems,
+      elementSpec: modelImportDataSpecPayload(spec.elementType, spec.elementSpec),
+    };
+  }
+  if (dataType === "时间型(timestamp)") return { timestampUnit: spec.timestampUnit };
+  if (dataType === "结构体(struct)") {
+    return {
+      fields: spec.fields.map((field) => modelImportParameterPayload(field)),
+    };
+  }
+  return {};
+}
+
+function modelImportParameterPayload(parameter, allowDefaultValue = false) {
+  const payload = {
+    name: parameter.name || "",
+    identifier: parameter.identifier || "",
+    dataType: parameter.dataType,
+    dataSpec: modelImportDataSpecPayload(parameter.dataType, parameter.dataSpec),
+  };
+  if (allowDefaultValue) {
+    payload.required = Boolean(parameter.required);
+    if (!payload.required && parameter.hasDefaultValue) {
+      payload.hasDefaultValue = true;
+      payload.defaultValue = String(parameter.defaultValue ?? "");
+    }
+  }
+  return payload;
+}
+
+function modelStandardImportPayload(spec) {
+  return {
+    properties: (spec?.properties || []).map((property) => {
+      const payload = {
+        name: property.name || "",
+        identifier: property.identifier || "",
+        dataType: property.dataType,
+        dataSpec: modelImportDataSpecPayload(property.dataType, property.dataSpec),
+        access: property.access || "只读",
+        description: property.description || "",
+      };
+      if (payload.access === "读写" && property.hasDefaultValue) {
+        payload.hasDefaultValue = true;
+        payload.defaultValue = String(property.defaultValue ?? "");
+      }
+      return payload;
+    }),
+    services: (spec?.services || []).map((service) => ({
+      name: service.name || "",
+      identifier: service.identifier || "",
+      callType: service.callType || "同步",
+      inputParams: (service.inputParams || []).map((parameter) => modelImportParameterPayload(parameter, true)),
+      outputParams: (service.outputParams || []).map((parameter) => modelImportParameterPayload(parameter)),
+      description: service.description || "",
+    })),
+    events: (spec?.events || []).map((event) => ({
+      name: event.name || "",
+      identifier: event.identifier || "",
+      outputParams: (event.outputParams || []).map((parameter) => modelImportParameterPayload(parameter)),
+      description: event.description || "",
+    })),
+  };
+}
+
+function modelPreviewPayload(functionId, item, version, spec, previewMode = "current") {
+  if (previewMode === "standard") return modelStandardImportPayload(spec);
+  return {
+    functionId,
+    versionId: version?.id,
+    properties: spec.properties,
+    services: spec.services,
+    events: spec.events,
+  };
+}
+
+function modelPreviewJson() {
+  if (state.modal?.type !== "model-preview") return "";
+  const functionId = route().split("/")[3];
+  const item = functions.find((entry) => entry.id === functionId);
+  const version = item ? selectedFunctionVersion(item) : null;
+  const spec = getModelSpec(functionId);
+  return JSON.stringify(modelPreviewPayload(functionId, item, version, spec, state.modal.previewMode), null, 2);
+}
+
+function modelPreviewFileName() {
+  const functionId = route().split("/")[3];
+  const item = functions.find((entry) => entry.id === functionId);
+  const version = item ? selectedFunctionVersion(item) : null;
+  const baseName = `${item?.identifier || functionId || "thing-model"}-${version?.label || "draft"}`
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "thing-model";
+  return `${baseName}-${state.modal?.previewMode === "standard" ? "import" : "snapshot"}.json`;
+}
+
+function fallbackCopyText(text) {
+  const textarea = document.querySelector('[data-role="model-json-output"]');
+  if (!textarea) return false;
+  textarea.focus();
+  textarea.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    window.getSelection()?.removeAllRanges();
+  }
+}
+
 function functionConfigPayload(spec) {
   return {
     properties: deepClone(spec?.properties || []),
@@ -1460,7 +1579,7 @@ function modelDefinition(row) {
 
 function modelDefaultSummary(row) {
   if (row.kind === "property") {
-    if (row.access === "只读") return "不适用";
+    if (row.access !== "读写") return "不适用";
     if (!row.hasDefaultValue) return "未设置";
     if (["数组型(array)", "结构体(struct)"].includes(row.dataType)) return modelDefaultStatus(row);
     const spec = parseModelDataSpec(row.dataType, "", row.dataSpec);
@@ -1549,7 +1668,7 @@ function modelPropertyRows(rows, editable) {
   if (!rows.length) return `<tr><td colspan="8"><div class="empty-state">暂未添加属性，不影响测试与发布</div></td></tr>`;
   return rows.map((row) => {
     const defaultState = modelDefaultSummary(row);
-    const defaultTone = row.access === "只读" ? "disabled" : row.hasDefaultValue ? "configured" : "empty";
+    const defaultTone = row.access !== "读写" ? "disabled" : row.hasDefaultValue ? "configured" : "empty";
     const actions = editable
       ? `<button class="btn btn-text" data-action="model-edit" data-kind="property" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="property" data-index="${row.index}">删除</button>`
       : `<button class="btn btn-text" data-action="model-view" data-kind="property" data-index="${row.index}">查看</button>`;
@@ -1567,13 +1686,34 @@ function modelEventRows(rows, editable) {
   return rows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td>${modelParameterListSummary(row.outputParams)}</td><td>${escapeHtml(row.description || "-")}</td><td>${editable ? `<button class="btn btn-text" data-action="model-edit" data-kind="event" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="event" data-index="${row.index}">删除</button>` : `<button class="btn btn-text" data-action="model-view" data-kind="event" data-index="${row.index}">查看</button>`}</td></tr>`).join("");
 }
 
+function modelAllRows(rows, editable) {
+  if (!rows.length) return `<tr><td colspan="8"><div class="empty-state">暂未添加物模型，可手工创建或批量导入 JSON 文件</div></td></tr>`;
+  return rows.map((row) => {
+    const defaultState = modelDefaultSummary(row);
+    const defaultTone = row.kind === "event" || (row.kind === "property" && row.access !== "读写") ? "disabled" : row.kind === "property" ? row.hasDefaultValue ? "configured" : "empty" : (row.inputParams || []).some((parameter) => parameter.hasDefaultValue) ? "configured" : "empty";
+    const definition = row.kind === "property"
+      ? `<strong>${escapeHtml(modelDataTypeShortLabel(row.dataType))}</strong><small>${escapeHtml(row.dataDefinition || "待完善数据定义")}</small>`
+      : row.kind === "service"
+        ? `<span>输入 ${row.inputParams?.length || 0} 项</span>${modelParameterListSummary(row.inputParams)}<span>输出 ${row.outputParams?.length || 0} 项</span>${modelParameterListSummary(row.outputParams)}`
+        : `<span>输出 ${row.outputParams?.length || 0} 项</span>${modelParameterListSummary(row.outputParams)}`;
+    const rule = row.kind === "property" ? row.access || "-" : row.kind === "service" ? row.callType || "同步" : "设备上报";
+    const actions = editable
+      ? `<button class="btn btn-text" data-action="model-edit" data-kind="${row.kind}" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="${row.kind}" data-index="${row.index}">删除</button>`
+      : `<button class="btn btn-text" data-action="model-view" data-kind="${row.kind}" data-index="${row.index}">查看</button>`;
+    return `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td><span class="model-kind-badge ${row.kind}">${modelKindLabel(row.kind)}</span></td><td><div class="model-all-definition ${row.kind}">${definition}</div></td><td><div class="model-default-cell"><span class="model-default-state ${defaultTone}">${escapeHtml(defaultState)}</span></div></td><td>${escapeHtml(rule)}</td><td>${escapeHtml(row.description || "-")}</td><td>${actions}</td></tr>`;
+  }).join("");
+}
+
 function modelInfoContent(item, version, rows, editable) {
-  const kinds = [["property", "属性"], ["service", "服务"], ["event", "事件"]];
-  if (!kinds.some(([kind]) => kind === state.modelKindTab)) state.modelKindTab = "property";
+  const kinds = [["all", "全部"], ["property", "属性"], ["service", "服务"], ["event", "事件"]];
+  if (!kinds.some(([kind]) => kind === state.modelKindTab)) state.modelKindTab = "all";
   const counts = Object.fromEntries(kinds.map(([kind]) => [kind, rows.filter((row) => row.kind === kind).length]));
-  const currentRows = rows.filter((row) => row.kind === state.modelKindTab);
-  const currentLabel = modelKindLabel(state.modelKindTab);
-  const table = state.modelKindTab === "property"
+  counts.all = rows.length;
+  const currentRows = state.modelKindTab === "all" ? rows : rows.filter((row) => row.kind === state.modelKindTab);
+  const currentLabel = state.modelKindTab === "all" ? "全部物模型" : modelKindLabel(state.modelKindTab);
+  const table = state.modelKindTab === "all"
+    ? `<table class="mini-table model-table model-kind-table model-all-table"><thead><tr><th>名称</th><th>标识符</th><th>类型</th><th>数据定义 / 参数</th><th>默认值</th><th>权限 / 调用</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelAllRows(currentRows, editable)}</tbody></table>`
+    : state.modelKindTab === "property"
     ? `<table class="mini-table model-table model-kind-table property-model-table"><thead><tr><th>属性名称</th><th>标识符</th><th>数据类型</th><th>数据定义</th><th>默认值</th><th>权限</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelPropertyRows(currentRows, editable)}</tbody></table>`
     : state.modelKindTab === "service"
       ? `<table class="mini-table model-table model-kind-table service-model-table"><thead><tr><th>服务名称</th><th>标识符</th><th>调用方式</th><th>输入参数</th><th>输出参数</th><th>输入默认值</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelServiceRows(currentRows, editable)}</tbody></table>`
@@ -1581,7 +1721,16 @@ function modelInfoContent(item, version, rows, editable) {
   const versionHint = editable
     ? "草稿版本可配置；数据定义和默认值统一在新增或编辑表单中保存。"
     : `${version.label} 已${version.status === "测试中" ? "进入测试并锁定" : "锁定"}，当前仅支持查看配置。`;
-  return `<div class="model-section-head model-definition-head"><div><h3>物模型定义 <small class="optional-label">可选</small></h3><p>${escapeHtml(versionHint)}</p></div><div><button class="btn" data-action="model-preview">查看 JSON</button>${editable ? `<button class="btn btn-primary" data-action="model-add" data-kind="${state.modelKindTab}">＋ 添加${currentLabel}</button>` : !workingFunctionVersion(item) && version.status === "已发布" ? `<button class="btn btn-primary" data-action="function-create-version" data-id="${item.id}" data-version="${version.id}">创建新版本后配置</button>` : ""}</div></div><div class="model-kind-tabs" role="tablist" aria-label="物模型类型">${kinds.map(([kind, label]) => `<button type="button" class="${state.modelKindTab === kind ? "active" : ""}" data-action="model-kind-tab" data-kind="${kind}" role="tab" aria-selected="${state.modelKindTab === kind}"><span>${label}</span><strong>${counts[kind]}</strong></button>`).join("")}</div><div class="model-kind-context"><span>${currentLabel}列表</span><small>${state.modelKindTab === "property" ? "默认值仅展示摘要，统一在新增或编辑属性时配置" : state.modelKindTab === "service" ? "输入参数默认值统一在新增或编辑服务时配置" : "事件参数由设备上报，不配置默认值"}</small></div><div class="data-table-wrap model-kind-table-wrap">${table}</div>`;
+  const contextHint = state.modelKindTab === "all"
+    ? "默认展示当前功能下的全部属性、服务和事件，可通过上方页签筛选"
+    : state.modelKindTab === "property"
+      ? "默认值仅展示摘要，统一在新增或编辑属性时配置"
+      : state.modelKindTab === "service"
+        ? "输入参数默认值统一在新增或编辑服务时配置"
+        : "事件参数由设备上报，不配置默认值";
+  const addKind = ["property", "service", "event"].includes(state.modelKindTab) ? state.modelKindTab : "property";
+  const addLabel = state.modelKindTab === "all" ? "新增物模型" : `添加${currentLabel}`;
+  return `<div class="model-section-head model-definition-head"><div><h3>物模型定义 <small class="optional-label">可选</small></h3><p>${escapeHtml(versionHint)}</p></div><div><button class="btn" data-action="model-preview">查看 JSON</button>${editable ? `<button class="btn" data-action="model-import">批量导入 JSON</button><button class="btn btn-primary" data-action="model-add" data-kind="${addKind}">＋ ${addLabel}</button>` : !workingFunctionVersion(item) && version.status === "已发布" ? `<button class="btn btn-primary" data-action="function-create-version" data-id="${item.id}" data-version="${version.id}">创建新版本后配置</button>` : ""}</div></div><div class="model-kind-tabs" role="tablist" aria-label="物模型类型筛选">${kinds.map(([kind, label]) => `<button type="button" class="${state.modelKindTab === kind ? "active" : ""}" data-action="model-kind-tab" data-kind="${kind}" role="tab" aria-selected="${state.modelKindTab === kind}"><span>${label}</span><strong>${counts[kind]}</strong></button>`).join("")}</div><div class="model-kind-context"><span>${currentLabel}</span><small>${contextHint}</small></div><div class="data-table-wrap model-kind-table-wrap">${table}</div>`;
 }
 
 function relatedHardwareContent(item, version, spec, editable) {
@@ -1805,7 +1954,7 @@ function createModelDraft(kind = "property", row = null) {
   const dataSpec = parseModelDataSpec(dataType, row?.dataDefinition, row?.dataSpec);
   const access = row?.access || "只读";
   const sourceDefaultValue = row?.defaultValue === undefined || row?.defaultValue === null ? "" : String(row.defaultValue);
-  const hasDefaultValue = access !== "只读" && Boolean(row?.hasDefaultValue ?? sourceDefaultValue !== "");
+  const hasDefaultValue = access === "读写" && Boolean(row?.hasDefaultValue ?? sourceDefaultValue !== "");
   return {
     id: row?.id || "",
     kind,
@@ -2112,9 +2261,11 @@ function modelFormBody(modal) {
   const basic = `${modelCountedField("物模型名称", "modal-model-name", draft.name, "请输入物模型名称", true, 50)}${modelCountedField("标识符", "modal-model-identifier", draft.identifier, "请输入物模型英文标识符", true, 50)}<div class="form-row required"><label>物模型类型</label><div class="model-type-switch">${[["property", "属性"], ["service", "服务"], ["event", "事件"]].map(([kind, label]) => `<button type="button" class="${draft.kind === kind ? "active" : ""}" data-action="model-kind" data-kind="${kind}">${label}</button>`).join("")}</div></div>`;
   let sections = modelFormSection("01", "基础信息", "名称、标识符与物模型类型", basic, "model-form-basic-section");
   if (draft.kind === "property") {
-    const defaultField = draft.access === "只读"
-      ? `<div class="model-inline-note property-default-note">只读属性由设备上报，不配置默认值。</div>`
-      : modelDefaultConfiguration(draft, { ownerScope: "property", roleName: "modal-model-default" }, modal.defaultValueError || "");
+    const defaultField = draft.access === "读写"
+      ? modelDefaultConfiguration(draft, { ownerScope: "property", roleName: "modal-model-default" }, modal.defaultValueError || "")
+      : draft.access === "只写"
+        ? `<div class="model-inline-note property-default-note">只写属性每次写入都必须明确传值，不配置默认值。</div>`
+        : `<div class="model-inline-note property-default-note">只读属性由设备上报，不配置默认值。</div>`;
     const definition = `${selectField("数据类型", "modal-model-data-type", MODEL_DATA_TYPES, draft.dataType, true)}${modelDataSpecEditor(draft.dataType, draft.dataSpec, { scope: "property" })}${modelChoiceField("访问权限", "model-access", draft.access, ["只读", "读写", "只写"])}`;
     sections += modelFormSection("02", "数据定义", "数据类型、取值规则与访问权限", definition, "model-form-definition-section");
     sections += modelFormSection("03", "默认值", "默认值必须符合当前数据定义", defaultField, "model-form-default-section");
@@ -2130,7 +2281,13 @@ function modelFormBody(modal) {
     ? modelParameterConfirm("改为不设置默认值？", "继续后将清除当前已经配置的默认值。", "model-default-disable-cancel", "model-default-disable-confirm", "确认清除")
     : "";
   const accessDefaultConfirm = modal.accessDefaultConfirm
-    ? modelParameterConfirm("切换为只读属性？", "只读属性不配置默认值，继续后将清除当前默认值。", "model-access-default-cancel", "model-access-default-confirm", "切换并清除")
+    ? modelParameterConfirm(
+        `切换为${modal.accessDefaultConfirm.value}属性？`,
+        modal.accessDefaultConfirm.value === "只写" ? "只写属性必须在每次写入时明确传值，继续后将清除当前默认值。" : "只读属性由设备上报，继续后将清除当前默认值。",
+        "model-access-default-cancel",
+        "model-access-default-confirm",
+        "切换并清除",
+      )
     : "";
   const typeChangeConfirm = modal.typeChangeConfirm
     ? modelParameterConfirm(
@@ -2330,21 +2487,30 @@ function renderModal() {
     const item = functions.find((entry) => entry.id === functionId);
     const version = item ? selectedFunctionVersion(item) : null;
     const spec = getModelSpec(functionId);
+    const previewMode = modal.previewMode === "standard" ? "standard" : "current";
+    const payload = modelPreviewPayload(functionId, item, version, spec, previewMode);
+    const counts = `${spec.properties.length} 个属性 · ${spec.services.length} 个服务 · ${spec.events.length} 个事件`;
     title = "物模型 JSON";
     wide = true;
-    body = `<div class="info-strip">${escapeHtml(item?.name || "功能项")} · ${version?.label || ""} · ${version?.status || "草稿"}</div><textarea class="model-json model-json-textarea" readonly>${escapeHtml(JSON.stringify({ functionId, versionId: version?.id, properties: spec.properties, services: spec.services, events: spec.events }, null, 2))}</textarea>`;
-    footer = "";
+    body = `<div class="model-preview-layout"><div class="info-strip model-preview-summary"><strong>${escapeHtml(item?.name || "功能项")} · ${escapeHtml(version?.label || "")} · ${escapeHtml(version?.status || "草稿")}</strong><span>${counts}</span></div><div class="model-preview-tabs" role="tablist" aria-label="JSON 查看方式"><button type="button" role="tab" aria-selected="${previewMode === "current"}" class="${previewMode === "current" ? "active" : ""}" data-action="model-preview-mode" data-value="current"><strong>当前配置</strong><span>包含功能与版本内部信息</span></button><button type="button" role="tab" aria-selected="${previewMode === "standard"}" class="${previewMode === "standard" ? "active" : ""}" data-action="model-preview-mode" data-value="standard"><strong>标准导入格式</strong><span>可直接用于批量导入</span></button></div>${previewMode === "standard" ? `<div class="success-strip model-preview-guide"><strong>已按标准上传格式生成</strong><span>仅保留可导入的业务字段，复制或下载后可直接在“批量导入 JSON”中使用。</span></div>` : `<div class="info-strip model-preview-guide"><strong>当前版本完整快照</strong><span>用于核对系统内保存结果，包含内部标识，不建议作为批量导入文件。</span></div>`}<textarea class="model-json model-json-textarea" data-role="model-json-output" readonly spellcheck="false" aria-label="${previewMode === "standard" ? "标准导入 JSON" : "当前配置 JSON"}">${escapeHtml(JSON.stringify(payload, null, 2))}</textarea></div>`;
+    footer = `<button class="btn" data-action="modal-close">关闭</button><button class="btn" data-action="model-json-copy">复制 JSON</button><button class="btn btn-primary" data-action="model-json-download">下载 JSON</button>`;
   } else if (modal.type === "model-import") {
-    title = "导入JSON";
+    const importMode = modal.importMode === "replace" ? "replace" : "append";
+    const fileMeta = modal.fileName
+      ? `<div class="model-import-file-selected"><div><strong>${escapeHtml(modal.fileName)}</strong><span>${modal.fileSize ? `${Math.max(1, Math.round(modal.fileSize / 1024))} KB` : "内容已载入"}</span></div><button type="button" class="btn btn-text" data-action="model-import-file-clear">移除</button></div>`
+      : "";
+    title = "批量导入物模型";
     wide = true;
-    body = `<div class="warning-strip model-import-warning">导入数据将使用与手工创建相同的严格规则校验；未知数据类型不会自动转换。</div><textarea class="model-import-textarea" data-role="modal-model-import" placeholder="请输入JSON数据">${escapeHtml(modal.raw || "")}</textarea>`;
+    body = `<div class="model-import-layout"><div class="info-strip model-import-guide"><strong>JSON 文件需包含 properties、services、events 三个数组</strong><span>支持一次导入多条属性、服务和事件；每条数据使用与手工创建相同的规则校验。</span></div><section class="model-import-source"><div class="model-import-section-head"><div><strong>1. 选择 JSON 文件</strong><span>仅支持 .json，文件大小不超过 2 MB</span></div></div><label class="model-import-file-picker"><input type="file" data-role="model-import-file" accept=".json,application/json"><span class="model-import-upload-icon">↑</span><div><strong>点击选择 JSON 文件</strong><small>选择后自动读取，也可在下方直接粘贴或调整内容</small></div></label>${fileMeta}</section><section class="model-import-mode-section"><div class="model-import-section-head"><div><strong>2. 选择导入方式</strong><span>追加不会修改现有物模型，标识符冲突时将阻止导入</span></div></div><div class="model-import-mode" role="radiogroup" aria-label="导入方式"><button type="button" role="radio" aria-checked="${importMode === "append"}" class="${importMode === "append" ? "active" : ""}" data-action="model-import-mode" data-value="append"><strong>追加新项</strong><span>保留现有数据，仅增加文件中的物模型</span></button><button type="button" role="radio" aria-checked="${importMode === "replace"}" class="${importMode === "replace" ? "active danger" : ""}" data-action="model-import-mode" data-value="replace"><strong>覆盖全部</strong><span>清空当前属性、服务和事件后整体替换</span></button></div></section><section class="model-import-content-section"><div class="model-import-section-head"><div><strong>3. JSON 内容</strong><span>可核对或直接粘贴 JSON</span></div></div><textarea class="model-import-textarea" data-role="modal-model-import" spellcheck="false" placeholder='{"properties": [], "services": [], "events": []}'>${escapeHtml(modal.raw || "")}</textarea></section></div>`;
     footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">校验并预览</button>`;
   } else if (modal.type === "model-import-confirm") {
     const current = modal.current || { properties: [], services: [], events: [] };
     const candidate = modal.candidate || { properties: [], services: [], events: [] };
-    title = "确认替换物模型";
-    body = `<div class="warning-strip model-import-warning"><strong>该操作会整体替换当前草稿定义</strong><span>关联硬件不受影响。</span></div><div class="model-import-compare"><div><span>属性</span><strong>${current.properties.length} → ${candidate.properties.length}</strong></div><div><span>服务</span><strong>${current.services.length} → ${candidate.services.length}</strong></div><div><span>事件</span><strong>${current.events.length} → ${candidate.events.length}</strong></div></div><div class="success-strip"><strong>JSON 校验通过</strong><span>确认后立即写入当前草稿</span></div>`;
-    footer = `<button class="btn" data-action="model-import-back">返回修改</button><button class="btn btn-danger" data-action="modal-confirm">确认替换</button>`;
+    const replace = modal.importMode === "replace";
+    const targetCount = (key) => replace ? candidate[key].length : current[key].length + candidate[key].length;
+    title = replace ? "确认覆盖全部物模型" : "确认追加物模型";
+    body = `<div class="${replace ? "warning-strip model-import-warning" : "info-strip model-import-guide"}"><strong>${replace ? "当前草稿内的全部物模型将被替换" : `准备追加 ${candidate.properties.length + candidate.services.length + candidate.events.length} 条物模型`}</strong><span>${replace ? "关联硬件不受影响，该操作确认后立即生效。" : "现有物模型保持不变，导入项将追加至对应类型列表。"}</span></div>${modal.fileName ? `<div class="model-import-confirm-file"><span>来源文件</span><strong>${escapeHtml(modal.fileName)}</strong></div>` : ""}<div class="model-import-compare"><div><span>属性</span><strong>${current.properties.length} → ${targetCount("properties")}</strong><small>本次 ${candidate.properties.length} 条</small></div><div><span>服务</span><strong>${current.services.length} → ${targetCount("services")}</strong><small>本次 ${candidate.services.length} 条</small></div><div><span>事件</span><strong>${current.events.length} → ${targetCount("events")}</strong><small>本次 ${candidate.events.length} 条</small></div></div><div class="success-strip"><strong>JSON 格式与业务规则校验通过</strong><span>确认后写入当前草稿版本，仍可继续编辑各条物模型</span></div>`;
+    footer = `<button class="btn" data-action="model-import-back">返回修改</button><button class="btn ${replace ? "btn-danger" : "btn-primary"}" data-action="modal-confirm">${replace ? "确认覆盖" : "确认追加"}</button>`;
   } else if (modal.type === "model-hardware-form") {
     const spec = getModelSpec(route().split("/")[3]);
     const available = assetConfigs.hardware.rows.filter((row) => !spec.hardware.includes(row.id));
@@ -2993,9 +3159,10 @@ function syncModelDraftInput(target) {
     return true;
   } else if (field === "access") {
     state.modal.draft.access = target.value;
-    if (target.value === "只读") {
+    if (target.value !== "读写") {
       state.modal.draft.defaultValue = "";
       state.modal.draft.hasDefaultValue = false;
+      state.modal.draft._defaultValuePending = false;
     }
   } else {
     state.modal.draft[field] = target.value;
@@ -3277,9 +3444,9 @@ function handleModalConfirm() {
         dataType,
         dataSpec,
         dataDefinition: modelDataSpecToDefinition(dataType, dataSpec),
-        defaultValue: access === "只读" || !draft.hasDefaultValue ? "" : draft.defaultValue,
-        hasDefaultValue: access !== "只读" && Boolean(draft.hasDefaultValue),
-        _defaultValuePending: access !== "只读" && Boolean(draft.hasDefaultValue && draft._defaultValuePending),
+        defaultValue: access !== "读写" || !draft.hasDefaultValue ? "" : draft.defaultValue,
+        hasDefaultValue: access === "读写" && Boolean(draft.hasDefaultValue),
+        _defaultValuePending: access === "读写" && Boolean(draft.hasDefaultValue && draft._defaultValuePending),
         access,
       };
     } else if (draft.kind === "service") {
@@ -3317,7 +3484,8 @@ function handleModalConfirm() {
   }
   if (modal.type === "model-import") {
     if (!requireDraftFunctionVersion()) return;
-    const raw = inputValue("modal-model-import");
+    const raw = inputValue("modal-model-import") || String(modal.raw || "").trim();
+    if (!raw) return showToast("请选择 JSON 文件或粘贴 JSON 内容", "error", false);
     let parsed;
     try {
       parsed = JSON.parse(raw);
@@ -3332,7 +3500,7 @@ function handleModalConfirm() {
     for (const [key, kind] of Object.entries(collections)) {
       const rows = parsed[key];
       if (!Array.isArray(rows)) return showToast(`${key} 必须是数组`, "error", false);
-      candidate[key] = rows.map((row, index) => ({ ...(row && typeof row === "object" ? row : {}), id: row?.id || `${kind}${Date.now()}${index}` }));
+      candidate[key] = rows.map((row, index) => ({ ...(row && typeof row === "object" ? row : {}), id: `${kind}${Date.now()}-${index}` }));
     }
     normalizeModelSpecData(candidate);
     for (const [key, kind] of Object.entries(collections)) {
@@ -3343,9 +3511,22 @@ function handleModalConfirm() {
     if (new Set(identifiers).size !== identifiers.length) return showToast("导入数据存在重复标识符", "error", false);
     const functionId = route().split("/")[3];
     const spec = getModelSpec(functionId);
+    const importMode = modal.importMode === "replace" ? "replace" : "append";
+    if (!identifiers.length) return showToast("JSON 文件中没有可导入的物模型", "error", false);
+    if (importMode === "append") {
+      const existingIdentifiers = new Set(flattenModelRows(spec).map((row) => row.identifier));
+      const conflicts = identifiers.filter((identifier) => existingIdentifiers.has(identifier));
+      if (conflicts.length) {
+        const preview = conflicts.slice(0, 3).join("、");
+        return showToast(`存在 ${conflicts.length} 个标识符冲突：${preview}${conflicts.length > 3 ? " 等" : ""}`, "error", false);
+      }
+    }
     state.modal = {
       type: "model-import-confirm",
       raw,
+      importMode,
+      fileName: modal.fileName || "",
+      fileSize: modal.fileSize || 0,
       candidate: deepClone(candidate),
       current: { properties: deepClone(spec.properties), services: deepClone(spec.services), events: deepClone(spec.events) },
     };
@@ -3356,12 +3537,21 @@ function handleModalConfirm() {
     if (!requireDraftFunctionVersion()) return;
     const functionId = route().split("/")[3];
     const spec = getModelSpec(functionId);
-    spec.properties = deepClone(modal.candidate.properties);
-    spec.services = deepClone(modal.candidate.services);
-    spec.events = deepClone(modal.candidate.events);
+    const replace = modal.importMode === "replace";
+    if (replace) {
+      spec.properties = deepClone(modal.candidate.properties);
+      spec.services = deepClone(modal.candidate.services);
+      spec.events = deepClone(modal.candidate.events);
+    } else {
+      spec.properties.push(...deepClone(modal.candidate.properties));
+      spec.services.push(...deepClone(modal.candidate.services));
+      spec.events.push(...deepClone(modal.candidate.events));
+    }
     spec.savedAt = "";
+    state.modelKindTab = "all";
     state.modal = null;
-    return showToast("物模型 JSON 已替换");
+    const importedCount = modal.candidate.properties.length + modal.candidate.services.length + modal.candidate.events.length;
+    return showToast(replace ? `已覆盖并导入 ${importedCount} 条物模型` : `已追加导入 ${importedCount} 条物模型`);
   }
   if (modal.type === "model-hardware-form") {
     if (!requireDraftFunctionVersion()) return;
@@ -3529,7 +3719,7 @@ document.addEventListener("click", (event) => {
     if (!item || !targetLine) return showToast("该功能已覆盖全部产品线", "error");
     state.modal = { type: "function-cross-line-copy", id: item.id, versionId: target.dataset.version || latestPublishedVersion(item)?.id, targetLine };
   }
-  else if (action === "function-model" || action === "function-detail") { const item = functions.find((entry) => entry.id === target.dataset.id); if (item) state.functionVersionSelection[item.id] = workspaceFunctionVersion(item)?.id; state.modelTab = "model"; state.modelKindTab = "property"; state.functionReferencePage = 1; return navigate(`/function/detail/${target.dataset.id}`); }
+  else if (action === "function-model" || action === "function-detail") { const item = functions.find((entry) => entry.id === target.dataset.id); if (item) state.functionVersionSelection[item.id] = workspaceFunctionVersion(item)?.id; state.modelTab = "model"; state.modelKindTab = "all"; state.functionReferencePage = 1; return navigate(`/function/detail/${target.dataset.id}`); }
   else if (action === "function-version-select") {
     const item = functions.find((entry) => entry.id === target.dataset.id);
     if (item?.versions.some((version) => version.id === target.dataset.version)) state.functionVersionSelection[item.id] = target.dataset.version;
@@ -3537,8 +3727,8 @@ document.addEventListener("click", (event) => {
     state.functionReferencePage = 1;
   }
   else if (action === "function-version-snapshot") state.modal = { type: "function-version-snapshot", id: target.dataset.id, versionId: target.dataset.version };
-  else if (action === "function-open-workspace") { state.functionVersionSelection[target.dataset.id] = target.dataset.version; state.modelTab = "model"; state.modelKindTab = "property"; state.modal = null; return navigate(`/function/detail/${target.dataset.id}`); }
-  else if (action === "function-version-view") { state.functionVersionSelection[target.dataset.id] = target.dataset.version; state.modelTab = "model"; state.modelKindTab = "property"; return navigate(`/function/detail/${target.dataset.id}`); }
+  else if (action === "function-open-workspace") { state.functionVersionSelection[target.dataset.id] = target.dataset.version; state.modelTab = "model"; state.modelKindTab = "all"; state.modal = null; return navigate(`/function/detail/${target.dataset.id}`); }
+  else if (action === "function-version-view") { state.functionVersionSelection[target.dataset.id] = target.dataset.version; state.modelTab = "model"; state.modelKindTab = "all"; return navigate(`/function/detail/${target.dataset.id}`); }
   else if (action === "function-edit") {
     const item = functions.find((entry) => entry.id === (target.dataset.id || state.modal?.id));
     if (!item || !canEditFunctionMetadata(item)) return showToast("功能首次发布后基础资料不可修改", "error");
@@ -3604,7 +3794,7 @@ document.addEventListener("click", (event) => {
   else if (action === "model-access") {
     const nextAccess = target.dataset.value;
     if (nextAccess === state.modal.draft.access) return;
-    if (nextAccess === "只读" && state.modal.draft.hasDefaultValue) {
+    if (nextAccess !== "读写" && state.modal.draft.hasDefaultValue) {
       state.modal.accessDefaultConfirm = { value: nextAccess };
       render();
       return;
@@ -3946,10 +4136,51 @@ document.addEventListener("click", (event) => {
     if (!requireDraftFunctionVersion()) return;
     state.modal = { type: "model-delete-confirm", kind: target.dataset.kind, index: Number(target.dataset.index) };
   }
-  else if (action === "model-preview") state.modal = { type: "model-preview" };
+  else if (action === "model-preview") state.modal = { type: "model-preview", previewMode: "current" };
+  else if (action === "model-preview-mode") {
+    if (state.modal?.type !== "model-preview") return;
+    state.modal.previewMode = target.dataset.value === "standard" ? "standard" : "current";
+  }
+  else if (action === "model-json-copy") {
+    const text = modelPreviewJson();
+    if (!text) return;
+    const onSuccess = () => showToast("JSON 已复制", "", false);
+    const onFallback = () => fallbackCopyText(text) ? onSuccess() : showToast("复制失败，请手动选择 JSON", "error", false);
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(onSuccess).catch(onFallback);
+    else onFallback();
+    return;
+  }
+  else if (action === "model-json-download") {
+    const text = modelPreviewJson();
+    if (!text) return;
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = modelPreviewFileName();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast("JSON 文件已下载", "", false);
+    return;
+  }
   else if (action === "model-import") {
     if (!requireDraftFunctionVersion()) return;
-    state.modal = { type: "model-import" };
+    state.modal = { type: "model-import", importMode: "append", raw: "", fileName: "", fileSize: 0 };
+  }
+  else if (action === "model-import-mode") {
+    if (state.modal?.type !== "model-import") return;
+    state.modal.importMode = target.dataset.value === "replace" ? "replace" : "append";
+    render();
+    return;
+  }
+  else if (action === "model-import-file-clear") {
+    if (state.modal?.type !== "model-import") return;
+    state.modal.raw = "";
+    state.modal.fileName = "";
+    state.modal.fileSize = 0;
+    render();
+    return;
   }
   else if (action === "model-hardware-add") {
     if (!requireDraftFunctionVersion()) return;
@@ -3980,7 +4211,7 @@ document.addEventListener("click", (event) => {
   }
   else if (action === "model-discard-return") { state.modal = state.modal.previousModal; render(); return; }
   else if (action === "model-discard-confirm") { state.modal = null; render(); return; }
-  else if (action === "model-import-back") { state.modal = { type: "model-import", raw: state.modal.raw }; render(); return; }
+  else if (action === "model-import-back") { state.modal = { type: "model-import", raw: state.modal.raw, importMode: state.modal.importMode || "append", fileName: state.modal.fileName || "", fileSize: state.modal.fileSize || 0 }; render(); return; }
   else if (action === "modal-confirm") return handleModalConfirm();
   else if (action === "draft-row-add") {
     const draft = activeEditableDraft();
@@ -4096,7 +4327,9 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("input", (event) => {
   if (syncModelDraftInput(event.target)) return;
-  if (event.target.matches('[data-role="modal-copy-version-changelog"]') && state.modal?.type === "function-cross-line-copy") {
+  if (event.target.matches('[data-role="modal-model-import"]') && state.modal?.type === "model-import") {
+    state.modal.raw = event.target.value;
+  } else if (event.target.matches('[data-role="modal-copy-version-changelog"]') && state.modal?.type === "function-cross-line-copy") {
     state.modal.changelog = event.target.value;
     state.modal.changelogEdited = true;
   } else if (event.target.matches('[data-role="category-search"]')) {
@@ -4157,7 +4390,27 @@ document.addEventListener("change", (event) => {
     if (event.target.matches("select")) render();
     return;
   }
-  if (event.target.matches('[data-role="category-upload"]') && event.target.files?.[0]) {
+  if (event.target.matches('[data-role="model-import-file"]') && event.target.files?.[0]) {
+    const file = event.target.files[0];
+    if (!file.name.toLowerCase().endsWith(".json")) {
+      event.target.value = "";
+      return showToast("请选择 .json 格式文件", "error", false);
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      event.target.value = "";
+      return showToast("JSON 文件不能超过 2 MB", "error", false);
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (state.modal?.type !== "model-import") return;
+      state.modal.raw = String(reader.result || "");
+      state.modal.fileName = file.name;
+      state.modal.fileSize = file.size;
+      render();
+    };
+    reader.onerror = () => showToast("JSON 文件读取失败，请重新选择", "error", false);
+    reader.readAsText(file, "utf-8");
+  } else if (event.target.matches('[data-role="category-upload"]') && event.target.files?.[0]) {
     const reader = new FileReader();
     reader.onload = () => { state.categoryDraft.image = reader.result; render(); };
     reader.readAsDataURL(event.target.files[0]);
