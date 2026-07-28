@@ -151,6 +151,7 @@ function functionVersion(id, number, status, refs, options = {}) {
     firmwareRelations: options.firmwareRelations || null,
     firmwareRelationHistory: options.firmwareRelationHistory || [],
     publishedSnapshot: options.publishedSnapshot || null,
+    recommended: Boolean(options.recommended),
   };
 }
 
@@ -163,6 +164,7 @@ function definedFunctionMock(id, name, identifier, category, remark, image, crea
     category,
     image,
     remark,
+    requiredInFirmware: false,
     createdAt,
     versions: [functionVersion(id, 1, "草稿", 0, {
       createdAt,
@@ -192,23 +194,23 @@ const definedFunctionMocks = [
 const functions = [
   {
     id: "f1", name: "移动侦测", identifier: "motion_detection", productLine: "IPC", category: "智能分析", image: img.camera,
-    remark: "检测画面变化并上报移动事件", createdAt: "2026-05-12 10:20:05",
+    remark: "检测画面变化并上报移动事件", requiredInFirmware: true, createdAt: "2026-05-12 10:20:05",
     versions: [
-      functionVersion("f1", 2, "已发布", 12, { publishedAt: "2026-07-15 16:40:20", changelog: "提升弱光环境识别稳定性", firmwareVersions: ["23.210.211", "23.210.212"] }),
+      functionVersion("f1", 2, "已发布", 12, { publishedAt: "2026-07-15 16:40:20", changelog: "提升弱光环境识别稳定性", firmwareVersions: ["23.210.211", "23.210.212"], recommended: true }),
       functionVersion("f1", 1, "已停用", 4, { publishedAt: "2026-05-18 11:32:10", changelog: "首个正式版本", firmwareVersions: ["23.110.200"] }),
     ],
   },
   {
     id: "f2", name: "夜视模式", identifier: "night_vision", productLine: "IPC", category: "图像设置", image: img.goose,
-    remark: "自动或手动切换日夜成像模式", createdAt: "2026-06-03 09:32:18",
-    versions: [functionVersion("f2", 1, "已发布", 0, { publishedAt: "2026-07-18 10:20:05", changelog: "验证红外切换与画面恢复", firmwareVersions: ["99.789.24", "23.210.211"] })],
+    remark: "自动或手动切换日夜成像模式", requiredInFirmware: true, createdAt: "2026-06-03 09:32:18",
+    versions: [functionVersion("f2", 1, "已发布", 0, { publishedAt: "2026-07-18 10:20:05", changelog: "验证红外切换与画面恢复", firmwareVersions: ["99.789.24", "23.210.211"], recommended: true })],
   },
   {
     id: "f3", name: "云台控制", identifier: "ptz_control", productLine: "IPC", category: "设备控制", image: img.blue,
     remark: "控制水平与垂直电机运动", createdAt: "2026-04-22 14:06:36",
     versions: [
       functionVersion("f3", 3, "草稿", 0, { changelog: "增加预置位控制" }),
-      functionVersion("f3", 2, "已发布", 8, { publishedAt: "2026-06-26 10:42:00", changelog: "增加转动速度参数", firmwareVersions: ["23.230.111"] }),
+      functionVersion("f3", 2, "已发布", 8, { publishedAt: "2026-06-26 10:42:00", changelog: "增加转动速度参数", firmwareVersions: ["23.230.111"], recommended: true }),
     ],
   },
   {
@@ -219,7 +221,7 @@ const functions = [
   {
     id: "f5", name: "录像回放", identifier: "record_playback", productLine: "NVR", category: "存储管理", image: img.blue,
     remark: "按通道和时间范围查询录像", createdAt: "2026-05-20 15:44:10",
-    versions: [functionVersion("f5", 1, "已发布", 6, { publishedAt: "2026-06-01 10:22:18", changelog: "首个正式版本", firmwareVersions: ["3.8.12"] })],
+    versions: [functionVersion("f5", 1, "已发布", 6, { publishedAt: "2026-06-01 10:22:18", changelog: "首个正式版本", firmwareVersions: ["3.8.12"], recommended: true })],
   },
   {
     id: "f6", name: "碰撞告警", identifier: "collision_alarm", productLine: "车载", category: "智能分析", image: img.camera,
@@ -229,18 +231,18 @@ const functions = [
   {
     id: "f7", name: "语音唤醒", identifier: "voice_wakeup", productLine: "AI玩具", category: "音频设置", image: img.goose,
     remark: "监听唤醒词并启动语音会话", createdAt: "2026-06-16 16:28:00",
-    versions: [functionVersion("f7", 1, "已发布", 3, { publishedAt: "2026-07-02 10:18:00", changelog: "首个正式版本", firmwareVersions: ["1.2.0"] })],
+    versions: [functionVersion("f7", 1, "已发布", 3, { publishedAt: "2026-07-02 10:18:00", changelog: "首个正式版本", firmwareVersions: ["1.2.0"], recommended: true })],
   },
   {
     id: "f8", name: "哭声检测", identifier: "cry_detection", productLine: "婴儿看护", category: "智能分析", image: img.blue,
-    remark: "识别婴儿哭声并向家长端推送提醒", createdAt: "2026-06-28 09:10:20",
+    remark: "识别婴儿哭声并向家长端推送提醒", requiredInFirmware: true, createdAt: "2026-06-28 09:10:20",
     versions: [functionVersion("f8", 1, "测试中", 0, { changelog: "增加不同环境噪声下的哭声识别" })],
   },
   ...definedFunctionMocks,
 ];
 
-function mockModelParameter(name, identifier, dataType, defaultValue = "", dataDefinition = "") {
-  return { name, identifier, dataType, dataDefinition, defaultValue, required: defaultValue === "" };
+function mockModelParameter(name, identifier, dataType, dataDefinition = "", required = true) {
+  return { name, identifier, dataType, dataDefinition, required };
 }
 
 function createMockModelSpec(functionId, index = 0) {
@@ -254,12 +256,12 @@ function createMockModelSpec(functionId, index = 0) {
       { id: `${functionId}-property-version`, name: "固件版本", identifier: "firmware_version", dataType: "字符型(String)", dataDefinition: "长度：0~64", defaultValue: "", access: "只读", description: `Mock 固件版本 ${suffix}` },
     ],
     services: [
-      { id: `${functionId}-service-capture`, name: "抓拍图片", identifier: "capture_image", callType: "同步", inputParams: [mockModelParameter("图片质量", "quality", "整数型(Int)", "80", "范围：0~100，步长：1")], outputParams: [mockModelParameter("图片地址", "image_url", "字符型(String)", "", "长度：0~512"), mockModelParameter("抓拍时间", "timestamp", "时间型(timestamp)", "", "Unix 毫秒时间戳")], description: "触发设备抓拍并返回图片地址" },
-      { id: `${functionId}-service-restart`, name: "重启设备", identifier: "restart_device", callType: "异步", inputParams: [mockModelParameter("延迟时间", "delay_seconds", "整数型(Int)", "0", "范围：0~300，步长：1")], outputParams: [mockModelParameter("任务标识", "task_id", "字符型(String)", "", "长度：1~64")], description: "按指定延时重启设备" },
+      { id: `${functionId}-service-capture`, name: "抓拍图片", identifier: "capture_image", callType: "同步", inputParams: [mockModelParameter("图片质量", "quality", "整数型(Int)", "范围：0~100，步长：1", false)], outputParams: [mockModelParameter("图片地址", "image_url", "字符型(String)", "长度：0~512"), mockModelParameter("抓拍时间", "timestamp", "时间型(timestamp)", "Unix 毫秒时间戳")], description: "触发设备抓拍并返回图片地址" },
+      { id: `${functionId}-service-restart`, name: "重启设备", identifier: "restart_device", callType: "异步", inputParams: [mockModelParameter("延迟时间", "delay_seconds", "整数型(Int)", "范围：0~300，步长：1", false)], outputParams: [mockModelParameter("任务标识", "task_id", "字符型(String)", "长度：1~64")], description: "按指定延时重启设备" },
     ],
     events: [
-      { id: `${functionId}-event-motion`, name: "移动侦测", identifier: "motion_detected", outputParams: [mockModelParameter("发生时间", "timestamp", "时间型(timestamp)", "", "Unix 毫秒时间戳"), mockModelParameter("图片地址", "image_url", "字符型(String)", "", "长度：0~512"), mockModelParameter("置信度", "confidence", "浮点型(float)", "", "范围：0~1，步长：0.01")], description: "检测到画面移动时上报" },
-      { id: `${functionId}-event-fault`, name: "设备故障", identifier: "device_fault", outputParams: [mockModelParameter("错误码", "error_code", "整数型(Int)", "", "范围：0~9999，步长：1"), mockModelParameter("错误信息", "error_message", "字符型(String)", "", "长度：0~256")], description: "设备异常时上报故障信息" },
+      { id: `${functionId}-event-motion`, name: "移动侦测", identifier: "motion_detected", outputParams: [mockModelParameter("发生时间", "timestamp", "时间型(timestamp)", "Unix 毫秒时间戳"), mockModelParameter("图片地址", "image_url", "字符型(String)", "长度：0~512"), mockModelParameter("置信度", "confidence", "浮点型(float)", "范围：0~1，步长：0.01")], description: "检测到画面移动时上报" },
+      { id: `${functionId}-event-fault`, name: "设备故障", identifier: "device_fault", outputParams: [mockModelParameter("错误码", "error_code", "整数型(Int)", "范围：0~9999，步长：1"), mockModelParameter("错误信息", "error_message", "字符型(String)", "长度：0~256")], description: "设备异常时上报故障信息" },
     ],
     hardware: relatedHardware ? [relatedHardware.id] : [],
     savedAt: "",
@@ -269,7 +271,7 @@ function createMockModelSpec(functionId, index = 0) {
 const initialModelSpecs = Object.fromEntries(functions.flatMap((item, index) => item.versions.map((version) => [`${item.id}:${version.id}`, createMockModelSpec(`${item.id}-${version.id}`, index)])));
 
 const STORAGE_KEY = "viot-prototype-state-v10";
-const STORAGE_VERSION = 9;
+const STORAGE_VERSION = 10;
 
 function defaultTemplateRows() {
   return [{ key: "test_1", label: "测试硬件参数", type: "布尔型（Boolean）", attribute: "true", remark: "123" }];
@@ -352,10 +354,21 @@ function activeMachineConfig(machineId = activeMachineId()) {
   if (!Array.isArray(config.hardware)) config.hardware = [];
   if (!Array.isArray(config.functions)) config.functions = [];
   config.functions = config.functions.map((binding) => {
-    if (typeof binding !== "string") return binding;
+    if (typeof binding !== "string") return { ...binding, source: binding.source || "manual" };
     const item = functions.find((entry) => entry.id === binding);
-    return { functionId: binding, versionId: latestPublishedVersion(item)?.id || item?.versions?.[0]?.id || "" };
+    return { functionId: binding, versionId: latestPublishedVersion(item)?.id || item?.versions?.[0]?.id || "", source: "manual" };
   });
+  const machine = machines.find((entry) => entry.id === id);
+  if (machine) {
+    functions.filter((item) => item.productLine === machine.line && item.requiredInFirmware).forEach((item) => {
+      const existing = config.functions.find((binding) => binding.functionId === item.id);
+      if (!existing) {
+        config.functions.push({ functionId: item.id, versionId: recommendedFunctionVersion(item)?.id || "", source: "required-auto" });
+      } else if (existing.source === "required-auto" && !existing.versionId) {
+        existing.versionId = recommendedFunctionVersion(item)?.id || "";
+      }
+    });
+  }
   if (!Array.isArray(config.parameters)) config.parameters = [];
   if (!Array.isArray(config.tests)) config.tests = [];
   if (typeof config.savedAt !== "string") config.savedAt = "";
@@ -741,7 +754,7 @@ function functionManagementCard(item) {
   const firmwareCount = item.versions.reduce((sum, version) => sum + functionFirmwareRelations(version).length, 0);
   const updatedAt = primary.publishedAt || primary.createdAt || item.createdAt;
   return `<article class="function-management-card">
-    <div class="function-management-card-head"><button class="function-card-open" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><code>${escapeHtml(item.identifier)}</code></span></button>${functionStatusTag(primary.status)}</div>
+    <div class="function-management-card-head"><button class="function-card-open" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><code>${escapeHtml(item.identifier)}</code></span></button><div class="function-card-tags">${item.requiredInFirmware ? `<span class="function-policy-tag required">固件必配</span>` : ""}${functionStatusTag(primary.status)}</div></div>
     <p>${escapeHtml(item.remark || "-")}</p>
     <span class="function-category-chip">${escapeHtml(item.category)}</span>
     <dl class="function-card-metrics"><div><dt>最新发布</dt><dd>${published?.label || "-"}</dd></div><div><dt>工作版本</dt><dd>${working?.label || "-"}</dd></div><div><dt>关联固件</dt><dd>${firmwareCount}</dd></div></dl>
@@ -754,11 +767,39 @@ function functionRow(item) {
   const working = item.versions.find((version) => ["草稿", "测试中"].includes(version.status));
   const primary = working || published || item.versions[0];
   const firmwareCount = item.versions.reduce((sum, version) => sum + functionFirmwareRelations(version).length, 0);
-  return `<tr><td><button class="function-name-cell" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><code>${escapeHtml(item.identifier)}</code></span></button></td><td>${escapeHtml(item.category)}</td><td>${published?.label || "-"}</td><td>${working?.label || "-"}</td><td>${functionStatusTag(primary.status)}</td><td>${firmwareCount}</td><td>${escapeHtml(primary.publishedAt || primary.createdAt || item.createdAt)}</td><td><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">详情</button>${!working && published ? `<button class="btn btn-text" data-action="function-create-version" data-id="${item.id}">新版本</button>` : ""}</td></tr>`;
+  return `<tr><td><button class="function-name-cell" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}${item.requiredInFirmware ? `<em class="function-policy-tag required">固件必配</em>` : ""}</strong><code>${escapeHtml(item.identifier)}</code></span></button></td><td>${escapeHtml(item.category)}</td><td>${published ? `${published.label}${published.recommended ? ` <span class="version-signal recommended">推荐</span>` : ""}` : "-"}</td><td>${working?.label || "-"}</td><td>${functionStatusTag(primary.status)}</td><td>${firmwareCount}</td><td>${escapeHtml(primary.publishedAt || primary.createdAt || item.createdAt)}</td><td><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">详情</button>${!working && published ? `<button class="btn btn-text" data-action="function-create-version" data-id="${item.id}">新版本</button>` : ""}</td></tr>`;
 }
 
 function latestPublishedVersion(item) {
   return item?.versions?.find((version) => version.status === "已发布") || null;
+}
+
+function publishedFunctionVersions(item) {
+  return (item?.versions || [])
+    .filter((version) => version.status === "已发布")
+    .sort((a, b) => Number(Boolean(b.recommended)) - Number(Boolean(a.recommended)) || (b.number || 0) - (a.number || 0));
+}
+
+function recommendedFunctionVersion(item) {
+  return publishedFunctionVersions(item).find((version) => version.recommended) || null;
+}
+
+function functionVersionSignalTags(version, compact = false) {
+  const relationCount = functionFirmwareRelations(version).length;
+  const tags = [];
+  if (version?.status === "已发布" && version.recommended) tags.push(`<span class="version-signal recommended">推荐</span>`);
+  if (relationCount) tags.push(`<span class="version-signal in-use" title="已有 ${relationCount} 个固件版本关联">${compact ? "在用" : `在用 ${relationCount}`}</span>`);
+  return tags.length ? `<span class="version-signal-list">${tags.join("")}</span>` : "";
+}
+
+function requiredFunctionBindingGaps(machineId = activeMachineId()) {
+  const machine = machines.find((entry) => entry.id === machineId) || machines[0];
+  const config = activeMachineConfig(machine?.id);
+  return functions.filter((item) => item.productLine === machine.line && item.requiredInFirmware).filter((item) => {
+    const binding = config.functions.find((entry) => entry.functionId === item.id);
+    const version = item.versions.find((entry) => entry.id === binding?.versionId);
+    return !version || version.status !== "已发布";
+  });
 }
 
 function selectedFunctionVersion(item) {
@@ -871,7 +912,8 @@ function functionHeadingActions(item) {
   }
   if (version.status === "已发布") {
     const working = item.versions.find((entry) => ["草稿", "测试中"].includes(entry.status));
-    return `<button class="btn" data-action="function-disable-version" data-id="${item.id}">停用版本</button>${working ? `<button class="btn btn-primary" data-action="function-version-view" data-id="${item.id}" data-version="${working.id}">查看 ${working.label} ${working.status}</button>` : `<button class="btn btn-primary" data-action="function-create-version" data-id="${item.id}">＋ 创建新版本</button>`}`;
+    const recommendAction = `<button class="btn" data-action="function-recommend-version" data-id="${item.id}" data-version="${version.id}" data-value="${version.recommended ? "false" : "true"}">${version.recommended ? "取消推荐" : "设为推荐"}</button>`;
+    return `${recommendAction}<button class="btn" data-action="function-disable-version" data-id="${item.id}">停用版本</button>${working ? `<button class="btn btn-primary" data-action="function-version-view" data-id="${item.id}" data-version="${working.id}">查看 ${working.label} ${working.status}</button>` : `<button class="btn btn-primary" data-action="function-create-version" data-id="${item.id}">＋ 创建新版本</button>`}`;
   }
   return `<button class="btn btn-primary" data-action="function-restore-version" data-id="${item.id}">恢复版本</button>`;
 }
@@ -881,7 +923,7 @@ function functionSelectedVersionActions(item, version) {
   if (current?.id === version.id) return functionHeadingActions(item);
 
   const statusAction = version.status === "已发布"
-    ? `<button class="btn" data-action="function-disable-version" data-id="${item.id}" data-version="${version.id}">停用版本</button>`
+    ? `<button class="btn" data-action="function-recommend-version" data-id="${item.id}" data-version="${version.id}" data-value="${version.recommended ? "false" : "true"}">${version.recommended ? "取消推荐" : "设为推荐"}</button><button class="btn" data-action="function-disable-version" data-id="${item.id}" data-version="${version.id}">停用版本</button>`
     : version.status === "已停用"
       ? `<button class="btn" data-action="function-restore-version" data-id="${item.id}" data-version="${version.id}">恢复版本</button>`
       : "";
@@ -903,7 +945,7 @@ function functionVersionRail(item, selected) {
     <div class="version-rail-list" role="tablist" aria-label="功能版本">${item.versions.map((version) => {
       const role = functionVersionRole(item, version);
       const time = version.publishedAt || version.createdAt || "-";
-      return `<button class="version-rail-item ${version.id === selected.id ? "active" : ""}" data-action="function-version-select" data-id="${item.id}" data-version="${version.id}" role="tab" aria-selected="${version.id === selected.id}"><span class="version-marker" aria-hidden="true"></span><span class="version-rail-copy"><span class="version-rail-title"><strong>${escapeHtml(version.label)}</strong>${functionStatusTag(version.status)}</span><span class="version-role ${functionVersionRoleClass(role)}">${role}</span><small>${escapeHtml(time)}</small></span></button>`;
+      return `<button class="version-rail-item ${version.id === selected.id ? "active" : ""}" data-action="function-version-select" data-id="${item.id}" data-version="${version.id}" role="tab" aria-selected="${version.id === selected.id}"><span class="version-marker" aria-hidden="true"></span><span class="version-rail-copy"><span class="version-rail-title"><strong>${escapeHtml(version.label)}</strong>${functionStatusTag(version.status)}</span><span class="version-rail-context"><span class="version-role ${functionVersionRoleClass(role)}">${role}</span>${functionVersionSignalTags(version, true)}</span><small>${escapeHtml(time)}</small></span></button>`;
     }).join("")}</div>
   </aside>`;
 }
@@ -1059,7 +1101,7 @@ function modelDefinitionMeta(dataType) {
   return definitions[dataType] || ["数据定义", "请输入数据定义"];
 }
 
-function normalizeModelParameterList(value, allowDefaultValue = false) {
+function normalizeModelParameterList(value, supportsRequired = false) {
   const entries = Array.isArray(value)
     ? value
     : String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -1068,18 +1110,17 @@ function normalizeModelParameterList(value, allowDefaultValue = false) {
     const identifier = String(source.identifier || source.key || "").trim();
     const dataType = normalizedModelDataType(source.dataType, "字符型(String)");
     const dataSpec = parseModelDataSpec(dataType, source.dataDefinition, source.dataSpec);
-    const sourceDefaultValue = source.defaultValue === undefined || source.defaultValue === null ? "" : String(source.defaultValue);
-    const explicitDefault = source.hasDefaultValue === true || sourceDefaultValue !== "";
-    const required = allowDefaultValue ? (source.required === undefined ? !explicitDefault : Boolean(source.required)) : true;
-    const hasDefaultValue = allowDefaultValue && !required && Boolean(source.hasDefaultValue ?? sourceDefaultValue !== "");
+    const hadLegacyDefault = source.hasDefaultValue === true
+      || (source.defaultValue !== undefined && source.defaultValue !== null && String(source.defaultValue) !== "");
+    const required = supportsRequired
+      ? source.required === undefined ? !hadLegacyDefault : Boolean(source.required)
+      : true;
     return {
       name: String(source.name || source.label || identifier).trim(),
       identifier,
       dataType,
       dataSpec,
       dataDefinition: modelDataSpecToDefinition(dataType, dataSpec),
-      defaultValue: hasDefaultValue ? sourceDefaultValue : "",
-      hasDefaultValue,
       required,
     };
   });
@@ -1105,13 +1146,19 @@ function normalizeModelSpecData(spec) {
       access,
     };
   });
-  spec.services = spec.services.map((row) => ({
-    ...row,
-    callType: row.callType || "同步",
-    inputParams: normalizeModelParameterList(row.inputParams, true),
-    outputParams: normalizeModelParameterList(row.outputParams),
-  }));
-  spec.events = spec.events.map((row) => ({ ...row, outputParams: normalizeModelParameterList(row.outputParams) }));
+  spec.services = spec.services.map((row) => {
+    const { defaultValue, hasDefaultValue, _defaultValuePending, ...service } = row;
+    return {
+      ...service,
+      callType: row.callType || "同步",
+      inputParams: normalizeModelParameterList(row.inputParams, true),
+      outputParams: normalizeModelParameterList(row.outputParams),
+    };
+  });
+  spec.events = spec.events.map((row) => {
+    const { defaultValue, hasDefaultValue, _defaultValuePending, ...event } = row;
+    return { ...event, outputParams: normalizeModelParameterList(row.outputParams) };
+  });
   return spec;
 }
 
@@ -1248,7 +1295,7 @@ function modelConfiguredDefaultValueError(dataType, defaultValue, definition = "
   return modelDefaultValueError(dataType, value, definition, dataSpecValue);
 }
 
-function modelParameterValidationError(parameters, allowDefaultValue) {
+function modelParameterValidationError(parameters) {
   const identifiers = new Set();
   for (const parameter of parameters) {
     if (!parameter.name || !parameter.identifier) return "请完善参数名称和标识符";
@@ -1258,10 +1305,6 @@ function modelParameterValidationError(parameters, allowDefaultValue) {
     identifiers.add(parameter.identifier);
     const specError = modelDataSpecValidationError(parameter.dataType, parameter.dataSpec);
     if (specError) return `参数“${parameter.name}”：${specError}`;
-    if (allowDefaultValue && !parameter.required && parameter.hasDefaultValue) {
-      const defaultError = modelConfiguredDefaultValueError(parameter.dataType, parameter.defaultValue, parameter.dataDefinition, parameter.dataSpec, true);
-      if (defaultError) return `参数“${parameter.name}”：${defaultError}`;
-    }
   }
   return "";
 }
@@ -1275,10 +1318,6 @@ function modelParameterEditorErrors(editor, value) {
   else if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(value.identifier)) errors.identifier = "需以字母开头，仅包含字母、数字和下划线";
   const specError = modelDataSpecValidationError(value.dataType, value.dataSpec);
   if (specError) errors.dataSpec = specError;
-  if (editor.allowDefaultValue && !value.required && value.hasDefaultValue) {
-    const defaultError = modelConfiguredDefaultValueError(value.dataType, value.defaultValue, value.dataDefinition, value.dataSpec, true, value._defaultValuePending);
-    if (defaultError) errors.defaultValue = defaultError;
-  }
   const duplicate = ["inputParams", "outputParams"]
     .flatMap((direction) => (state.modal.draft[direction] || []).map((row, index) => ({ row, direction, index })))
     .some(({ row, direction, index }) => row.identifier === value.identifier && !(direction === editor.direction && index === editor.index));
@@ -1298,10 +1337,9 @@ function modelRowValidationError(row, kind) {
     return modelConfiguredDefaultValueError(row.dataType, row.defaultValue, row.dataDefinition, row.dataSpec, row.hasDefaultValue, row._defaultValuePending);
   }
   if (kind === "service") {
-    return modelParameterValidationError([...(row.inputParams || []), ...(row.outputParams || [])], false)
-      || modelParameterValidationError(row.inputParams || [], true);
+    return modelParameterValidationError([...(row.inputParams || []), ...(row.outputParams || [])]);
   }
-  return modelParameterValidationError(row.outputParams || [], false);
+  return modelParameterValidationError(row.outputParams || []);
 }
 
 function modelSpecValidationError(spec) {
@@ -1328,6 +1366,7 @@ function modelImportShapeError(parsed) {
         const hasImportedDefault = row.hasDefaultValue === true || (row.defaultValue !== undefined && row.defaultValue !== null && String(row.defaultValue) !== "");
         if ((row.access || "只读") !== "读写" && hasImportedDefault) return `属性“${row.name || index + 1}”只有读写权限才支持默认值`;
       }
+      if (kind !== "property" && (Object.hasOwn(row, "defaultValue") || Object.hasOwn(row, "hasDefaultValue"))) return `${kind === "service" ? "服务" : "事件"}“${row.name || index + 1}”不支持配置默认值`;
       if (kind === "service" && row.callType !== undefined && !["同步", "异步"].includes(row.callType)) return `服务“${row.name || index + 1}”的调用方式不支持`;
       const parameterGroups = kind === "service" ? [["inputParams", row.inputParams], ["outputParams", row.outputParams]] : kind === "event" ? [["outputParams", row.outputParams]] : [];
       for (const [groupName, parameters] of parameterGroups) {
@@ -1335,6 +1374,7 @@ function modelImportShapeError(parsed) {
         for (const [parameterIndex, parameter] of parameters.entries()) {
           if (!parameter || Array.isArray(parameter) || typeof parameter !== "object") return `${groupName}[${parameterIndex}] 必须是对象`;
           if (!MODEL_DATA_TYPES.includes(parameter.dataType)) return `参数“${parameter.name || parameterIndex + 1}”的数据类型不支持`;
+          if (Object.hasOwn(parameter, "defaultValue") || Object.hasOwn(parameter, "hasDefaultValue")) return `${kind === "service" ? "服务" : "事件"}参数“${parameter.name || parameterIndex + 1}”不支持配置默认值`;
           if (groupName === "inputParams" && parameter.required !== undefined && typeof parameter.required !== "boolean") return `参数“${parameter.name || parameterIndex + 1}”的 required 必须是布尔值`;
         }
       }
@@ -1343,7 +1383,7 @@ function modelImportShapeError(parsed) {
   return "";
 }
 
-function migrateLegacyParameterList(current, seeded, allowDefaultValue) {
+function migrateLegacyParameterList(current, seeded, supportsRequired) {
   const seedList = Array.isArray(seeded) ? seeded : [];
   const entries = Array.isArray(current) ? current : String(current || "").split(",").map((item) => item.trim()).filter(Boolean);
   return entries.map((entry) => {
@@ -1355,20 +1395,17 @@ function migrateLegacyParameterList(current, seeded, allowDefaultValue) {
         && normalizedModelDataType(source.dataType, "字符型(String)") === "字符型(String)"
         && (!source.dataSpec?.maxLength)
         && (!source.dataDefinition || source.dataDefinition === "长度：0~"));
-    if (!seed || (!isLegacyPlaceholder && (source.dataDefinition || source.dataSpec))) return source;
-    const seedDefaultValue = allowDefaultValue ? String(seed.defaultValue ?? "") : "";
-    return {
-      ...seed,
-      ...source,
-      name: isLegacyPlaceholder && source.name === identifier ? seed.name : source.name,
-      dataType: seed.dataType,
-      dataDefinition: seed.dataDefinition,
-      dataSpec: seed.dataSpec,
-      defaultValue: isLegacyPlaceholder ? seedDefaultValue : allowDefaultValue ? String(source.defaultValue ?? seedDefaultValue) : "",
-      required: allowDefaultValue
-        ? isLegacyPlaceholder ? Boolean(seed.required ?? !seedDefaultValue) : Boolean(source.required ?? seed.required ?? !seedDefaultValue)
-        : true,
-    };
+    const candidate = !seed || (!isLegacyPlaceholder && (source.dataDefinition || source.dataSpec))
+      ? source
+      : {
+          ...seed,
+          ...source,
+          name: isLegacyPlaceholder && source.name === identifier ? seed.name : source.name,
+          dataType: seed.dataType,
+          dataDefinition: seed.dataDefinition,
+          dataSpec: seed.dataSpec,
+        };
+    return normalizeModelParameterList([candidate], supportsRequired)[0];
   });
 }
 
@@ -1432,19 +1469,15 @@ function modelImportDataSpecPayload(dataType, dataSpec) {
   return {};
 }
 
-function modelImportParameterPayload(parameter, allowDefaultValue = false) {
+function modelImportParameterPayload(parameter, supportsRequired = false) {
   const payload = {
     name: parameter.name || "",
     identifier: parameter.identifier || "",
     dataType: parameter.dataType,
     dataSpec: modelImportDataSpecPayload(parameter.dataType, parameter.dataSpec),
   };
-  if (allowDefaultValue) {
+  if (supportsRequired) {
     payload.required = Boolean(parameter.required);
-    if (!payload.required && parameter.hasDefaultValue) {
-      payload.hasDefaultValue = true;
-      payload.defaultValue = String(parameter.defaultValue ?? "");
-    }
   }
   return payload;
 }
@@ -1594,10 +1627,6 @@ function modelDefaultSummary(row) {
     const text = String(row.defaultValue);
     return text.length > 18 ? `${text.slice(0, 18)}...` : text;
   }
-  if (row.kind === "service") {
-    const defaults = (row.inputParams || []).filter((parameter) => parameter.hasDefaultValue);
-    return defaults.length ? `${defaults.length} 个输入参数已设置` : "未设置";
-  }
   return "不适用";
 }
 
@@ -1619,11 +1648,11 @@ function modelSpecPage(functionId) {
     : "";
   const metadataEditable = canEditFunctionMetadata(item);
   return `<section class="surface model-page">
-    <div class="detail-banner model-banner function-detail-banner"><img class="banner-icon" src="${item.image}" alt=""><div class="banner-copy"><h2>${escapeHtml(item.name)}</h2><div class="banner-meta"><span>产品线： <strong>${escapeHtml(item.productLine)}</strong></span><span>功能分类： <strong>${escapeHtml(item.category)}</strong></span><span>功能标识： <strong><code>${escapeHtml(item.identifier)}</code></strong></span><span>说明： <strong>${escapeHtml(item.remark || "-")}</strong></span></div></div><div class="banner-actions"><button class="btn" data-action="function-edit" data-id="${item.id}" ${metadataEditable ? "" : "disabled"} title="${metadataEditable ? "编辑功能资料" : "功能首次发布后基础资料锁定"}">编辑功能资料</button>${copyAction}</div></div>
+    <div class="detail-banner model-banner function-detail-banner"><img class="banner-icon" src="${item.image}" alt=""><div class="banner-copy"><h2>${escapeHtml(item.name)}</h2><div class="banner-meta"><span><em>产品线</em><strong>${escapeHtml(item.productLine)}</strong></span><span><em>功能分类</em><strong>${escapeHtml(item.category)}</strong></span><span><em>功能标识</em><strong><code>${escapeHtml(item.identifier)}</code></strong></span><span><em>固件配置</em><strong><span class="function-policy-display ${item.requiredInFirmware ? "required" : "optional"}"><i aria-hidden="true"></i>${item.requiredInFirmware ? "必配能力" : "可选能力"}</span></strong></span><span class="banner-meta-description"><em>功能说明</em><strong>${escapeHtml(item.remark || "-")}</strong></span></div></div><div class="banner-actions"><button class="btn" data-action="function-edit" data-id="${item.id}" title="${metadataEditable ? "编辑功能资料与固件配置" : "基础资料已锁定，可调整固件配置"}">编辑功能</button>${copyAction}</div></div>
     <div class="function-version-layout">
       ${functionVersionRail(item, version)}
       <div class="version-detail-panel" role="tabpanel" aria-label="${escapeHtml(version.label)} 版本配置">
-        <div class="version-detail-head"><div class="version-detail-title"><span class="version-role ${functionVersionRoleClass(role)}">${role}</span><div><h3>${escapeHtml(version.label)}</h3>${functionStatusTag(version.status)}<small>${escapeHtml(sourceLabel)} · ${contextHint}</small></div><div class="version-description"><div><span>版本说明</span>${canEditVersionDescription(version) ? `<button class="version-description-edit" data-action="function-edit-version" data-id="${item.id}" data-version="${version.id}" title="编辑版本说明" aria-label="编辑版本说明">✎</button>` : ""}</div><p>${escapeHtml(version.changelog || "暂无版本说明")}</p></div></div><div class="version-detail-actions">${functionSelectedVersionActions(item, version)}</div></div>
+        <div class="version-detail-head"><div class="version-detail-title"><span class="version-role ${functionVersionRoleClass(role)}">${role}</span><div><h3>${escapeHtml(version.label)}</h3><div class="version-title-signals">${functionStatusTag(version.status)}${functionVersionSignalTags(version)}</div><small>${escapeHtml(sourceLabel)} · ${contextHint}</small></div><div class="version-description"><div><span>版本说明</span>${canEditVersionDescription(version) ? `<button class="version-description-edit" data-action="function-edit-version" data-id="${item.id}" data-version="${version.id}" title="编辑版本说明" aria-label="编辑版本说明">✎</button>` : ""}</div><p>${escapeHtml(version.changelog || "暂无版本说明")}</p></div></div><div class="version-detail-actions">${functionSelectedVersionActions(item, version)}</div></div>
         <div class="version-detail-meta"><span>创建时间 <strong>${escapeHtml(version.createdAt || "-")}</strong></span><span>发布时间 <strong>${escapeHtml(version.publishedAt || "-")}</strong></span></div>
         ${functionLifecycleSummary(item, version)}
         <div class="function-detail-tabs">${[["model", "物模型"], ["hardware", "关联硬件"], ["firmware", "固件关联"]].map(([id, label]) => `<button class="${state.modelTab === id ? "active" : ""}" data-action="model-tab" data-tab="${id}">${label}</button>`).join("")}</div><div class="model-content">${functionDetailTabContent(item, version, spec, modelRows, editable)}</div>
@@ -1677,8 +1706,8 @@ function modelPropertyRows(rows, editable) {
 }
 
 function modelServiceRows(rows, editable) {
-  if (!rows.length) return `<tr><td colspan="8"><div class="empty-state">暂未添加服务，不影响测试与发布</div></td></tr>`;
-  return rows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td>${escapeHtml(row.callType || "-")}</td><td>${modelParameterListSummary(row.inputParams)}</td><td>${modelParameterListSummary(row.outputParams)}</td><td><div class="model-default-cell service-default-cell"><span class="model-default-state ${(row.inputParams || []).some((parameter) => parameter.hasDefaultValue) ? "configured" : "empty"}">${escapeHtml(modelDefaultSummary(row))}</span></div></td><td>${escapeHtml(row.description || "-")}</td><td>${editable ? `<button class="btn btn-text" data-action="model-edit" data-kind="service" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="service" data-index="${row.index}">删除</button>` : `<button class="btn btn-text" data-action="model-view" data-kind="service" data-index="${row.index}">查看</button>`}</td></tr>`).join("");
+  if (!rows.length) return `<tr><td colspan="7"><div class="empty-state">暂未添加服务，不影响测试与发布</div></td></tr>`;
+  return rows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td>${escapeHtml(row.callType || "-")}</td><td>${modelParameterListSummary(row.inputParams)}</td><td>${modelParameterListSummary(row.outputParams)}</td><td>${escapeHtml(row.description || "-")}</td><td>${editable ? `<button class="btn btn-text" data-action="model-edit" data-kind="service" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="service" data-index="${row.index}">删除</button>` : `<button class="btn btn-text" data-action="model-view" data-kind="service" data-index="${row.index}">查看</button>`}</td></tr>`).join("");
 }
 
 function modelEventRows(rows, editable) {
@@ -1690,7 +1719,7 @@ function modelAllRows(rows, editable) {
   if (!rows.length) return `<tr><td colspan="8"><div class="empty-state">暂未添加物模型，可手工创建或批量导入 JSON 文件</div></td></tr>`;
   return rows.map((row) => {
     const defaultState = modelDefaultSummary(row);
-    const defaultTone = row.kind === "event" || (row.kind === "property" && row.access !== "读写") ? "disabled" : row.kind === "property" ? row.hasDefaultValue ? "configured" : "empty" : (row.inputParams || []).some((parameter) => parameter.hasDefaultValue) ? "configured" : "empty";
+    const defaultTone = row.kind !== "property" || row.access !== "读写" ? "disabled" : row.hasDefaultValue ? "configured" : "empty";
     const definition = row.kind === "property"
       ? `<strong>${escapeHtml(modelDataTypeShortLabel(row.dataType))}</strong><small>${escapeHtml(row.dataDefinition || "待完善数据定义")}</small>`
       : row.kind === "service"
@@ -1712,21 +1741,21 @@ function modelInfoContent(item, version, rows, editable) {
   const currentRows = state.modelKindTab === "all" ? rows : rows.filter((row) => row.kind === state.modelKindTab);
   const currentLabel = state.modelKindTab === "all" ? "全部物模型" : modelKindLabel(state.modelKindTab);
   const table = state.modelKindTab === "all"
-    ? `<table class="mini-table model-table model-kind-table model-all-table"><thead><tr><th>名称</th><th>标识符</th><th>类型</th><th>数据定义 / 参数</th><th>默认值</th><th>权限 / 调用</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelAllRows(currentRows, editable)}</tbody></table>`
+    ? `<table class="mini-table model-table model-kind-table model-all-table"><thead><tr><th>名称</th><th>标识符</th><th>类型</th><th>数据定义 / 参数</th><th>属性默认值</th><th>权限 / 调用</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelAllRows(currentRows, editable)}</tbody></table>`
     : state.modelKindTab === "property"
     ? `<table class="mini-table model-table model-kind-table property-model-table"><thead><tr><th>属性名称</th><th>标识符</th><th>数据类型</th><th>数据定义</th><th>默认值</th><th>权限</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelPropertyRows(currentRows, editable)}</tbody></table>`
     : state.modelKindTab === "service"
-      ? `<table class="mini-table model-table model-kind-table service-model-table"><thead><tr><th>服务名称</th><th>标识符</th><th>调用方式</th><th>输入参数</th><th>输出参数</th><th>输入默认值</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelServiceRows(currentRows, editable)}</tbody></table>`
+      ? `<table class="mini-table model-table model-kind-table service-model-table"><thead><tr><th>服务名称</th><th>标识符</th><th>调用方式</th><th>输入参数</th><th>输出参数</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelServiceRows(currentRows, editable)}</tbody></table>`
       : `<table class="mini-table model-table model-kind-table event-model-table"><thead><tr><th>事件名称</th><th>标识符</th><th>输出参数</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelEventRows(currentRows, editable)}</tbody></table>`;
   const versionHint = editable
-    ? "草稿版本可配置；数据定义和默认值统一在新增或编辑表单中保存。"
+    ? "草稿版本可配置；数据定义和属性默认值统一在新增或编辑表单中保存。"
     : `${version.label} 已${version.status === "测试中" ? "进入测试并锁定" : "锁定"}，当前仅支持查看配置。`;
   const contextHint = state.modelKindTab === "all"
     ? "默认展示当前功能下的全部属性、服务和事件，可通过上方页签筛选"
     : state.modelKindTab === "property"
       ? "默认值仅展示摘要，统一在新增或编辑属性时配置"
       : state.modelKindTab === "service"
-        ? "输入参数默认值统一在新增或编辑服务时配置"
+        ? "服务参数只定义调用契约，不配置默认值"
         : "事件参数由设备上报，不配置默认值";
   const addKind = ["property", "service", "event"].includes(state.modelKindTab) ? state.modelKindTab : "property";
   const addLabel = state.modelKindTab === "all" ? "新增物模型" : `添加${currentLabel}`;
@@ -1767,7 +1796,7 @@ function functionVersionsContent(item) {
   const versionAction = working
     ? `<div class="working-version-notice"><span>当前正在推进 <strong>${working.label}</strong> · ${functionStatusTag(working.status)}</span></div>`
     : published ? `<button class="btn btn-primary" data-action="function-create-version" data-id="${item.id}" data-version="${published.id}">＋ 创建新版本</button>` : "";
-  return `<div class="model-section-head version-history-head"><div><h3>版本历史</h3><p>历史版本以只读快照查看，不会改变当前工作区上下文。</p></div>${versionAction}</div><div class="data-table-wrap"><table class="mini-table version-history-table"><thead><tr><th>版本</th><th>版本角色</th><th>状态</th><th>变更说明</th><th>创建时间</th><th>发布时间</th><th>关联固件</th><th>操作</th></tr></thead><tbody>${item.versions.map((version) => { const role = functionVersionRole(item, version); return `<tr class="${version.id === selected.id ? "active-version-row" : ""}"><td><strong>${version.label}</strong></td><td><span class="version-role ${functionVersionRoleClass(role)}">${role}</span></td><td>${functionStatusTag(version.status)}</td><td>${escapeHtml(version.changelog || "-")}</td><td>${escapeHtml(version.createdAt || "-")}</td><td>${escapeHtml(version.publishedAt || "-")}</td><td>${functionFirmwareRelations(version).length}</td><td><button class="btn btn-text" data-action="function-version-snapshot" data-id="${item.id}" data-version="${version.id}">查看快照</button></td></tr>`; }).join("")}</tbody></table></div>`;
+  return `<div class="model-section-head version-history-head"><div><h3>版本历史</h3><p>历史版本以只读快照查看，不会改变当前工作区上下文。</p></div>${versionAction}</div><div class="data-table-wrap"><table class="mini-table version-history-table"><thead><tr><th>版本</th><th>版本角色</th><th>状态</th><th>使用标识</th><th>变更说明</th><th>创建时间</th><th>发布时间</th><th>关联固件</th><th>操作</th></tr></thead><tbody>${item.versions.map((version) => { const role = functionVersionRole(item, version); return `<tr class="${version.id === selected.id ? "active-version-row" : ""}"><td><strong>${version.label}</strong></td><td><span class="version-role ${functionVersionRoleClass(role)}">${role}</span></td><td>${functionStatusTag(version.status)}</td><td>${functionVersionSignalTags(version) || "-"}</td><td>${escapeHtml(version.changelog || "-")}</td><td>${escapeHtml(version.createdAt || "-")}</td><td>${escapeHtml(version.publishedAt || "-")}</td><td>${functionFirmwareRelations(version).length}</td><td><button class="btn btn-text" data-action="function-version-snapshot" data-id="${item.id}" data-version="${version.id}">查看快照</button></td></tr>`; }).join("")}</tbody></table></div>`;
 }
 
 function functionVersionSnapshotBody(item, version) {
@@ -1781,7 +1810,7 @@ function functionVersionSnapshotBody(item, version) {
     ["事件定义", spec.events.map((entry) => entry.identifier)],
     ["关联硬件", hardwareNames],
   ];
-  return `<div class="version-snapshot-hero"><div><span>${escapeHtml(item.name)}</span><h3>${version.label} ${functionStatusTag(version.status)}</h3></div><span class="version-role ${functionVersionRoleClass(role)}">${role}</span></div>
+  return `<div class="version-snapshot-hero"><div><span>${escapeHtml(item.name)}</span><h3>${version.label} ${functionStatusTag(version.status)}${functionVersionSignalTags(version)}</h3></div><span class="version-role ${functionVersionRoleClass(role)}">${role}</span></div>
     <div class="version-snapshot-meta"><div><span>创建时间</span><strong>${escapeHtml(version.createdAt || "-")}</strong></div><div><span>发布时间</span><strong>${escapeHtml(version.publishedAt || "-")}</strong></div><div><span>关联固件</span><strong>${functionFirmwareRelations(version).length}</strong></div><div><span>配置快照</span><strong>${escapeHtml(snapshot?.id || "实时配置")}</strong></div></div>
     <section class="version-snapshot-section"><h3>版本说明</h3><p>${escapeHtml(version.changelog || "暂无版本说明")}</p></section>
     <section class="version-snapshot-section"><h3>配置快照</h3><div class="version-snapshot-counts"><div><span>属性</span><strong>${spec.properties.length}</strong></div><div><span>服务</span><strong>${spec.services.length}</strong></div><div><span>事件</span><strong>${spec.events.length}</strong></div><div><span>关联硬件</span><strong>${spec.hardware.length}</strong></div></div><div class="snapshot-config-grid">${configGroups.map(([label, entries]) => `<div class="snapshot-config-group"><div><strong>${label}</strong><span>${entries.length} 项</span></div><div class="snapshot-token-list">${entries.length ? entries.map((entry) => `<code>${escapeHtml(entry)}</code>`).join("") : `<span class="snapshot-empty">暂无配置</span>`}</div></div>`).join("")}</div></section>`;
@@ -1863,9 +1892,26 @@ function selectField(label, roleName, options, value, required, disabled = "") {
   return `<div class="form-row ${required ? "required" : ""}"><label>${label}</label><select data-role="${roleName}" ${disabled}><option value="">请选择${label}</option>${options.map((item) => `<option ${item === value ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}</select></div>`;
 }
 
+function functionPolicySwitch(action, checked, label) {
+  return `<button type="button" class="function-policy-switch ${checked ? "active" : ""}" data-action="${action}" role="switch" aria-checked="${checked}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"><span class="function-policy-switch-core" aria-hidden="true"><span></span></span></button>`;
+}
+
+function functionFirmwarePolicyField(requiredInFirmware) {
+  const stateLabel = requiredInFirmware ? "必配能力" : "可选能力";
+  return `<div class="form-row function-policy-field"><label>固件必配</label><div class="function-policy-control"><div class="function-policy-switch-line">${functionPolicySwitch("function-policy-toggle", requiredInFirmware, `${requiredInFirmware ? "关闭" : "开启"}固件必配`)}<span class="function-policy-value ${requiredInFirmware ? "required" : "optional"}">${stateLabel}</span></div><small>开启后，上传该产品线固件包时会自动带出此功能。</small></div></div>`;
+}
+
 function functionBasicFormFields(item = null, productLine = state.selectedProductLine, includeInitialVersion = false) {
   const line = productLines.includes(productLine) ? productLine : productLines[0];
-  return `<section class="modal-form-section"><h3>功能资料</h3><div class="modal-form">${selectField("所属产品线", "modal-function-line", productLines, item?.productLine || line, true, item ? "disabled" : "")}${formField("功能项名称", "modal-function-name", item?.name || "", "请输入功能项名称", true)}${formField("功能标识", "modal-function-identifier", item?.identifier || "", "英文开头，仅支持字母、数字和下划线", true, item ? "disabled" : "")}${selectField("功能分类", "modal-function-category", functionCategories, item?.category || functionCategories[0], true)}<div class="form-row required"><label>功能说明</label><textarea data-role="modal-function-desc" placeholder="简要描述功能用途和使用场景">${escapeHtml(item?.remark || "")}</textarea></div><div class="form-row required"><label>示例图</label><div><label class="upload-box">${state.functionDraftImage || item?.image ? `<img class="upload-preview" src="${state.functionDraftImage || item.image}" alt="预览">` : `<span><span class="upload-plus">＋</span>点击上传</span>`}<input type="file" accept="image/png,image/jpeg" data-role="function-upload"></label><div class="upload-hint">支持 .jpg、.png、.jpeg，建议使用 1:1 图片</div></div></div></div></section>${includeInitialVersion ? `<section class="modal-form-section"><h3>首版信息</h3><div class="modal-form"><div class="form-row"><label>版本号</label><div class="form-static-value"><strong>V1</strong><span>系统自动生成</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-initial-version-changelog" placeholder="说明首版提供的能力和适用场景"></textarea></div></div></section>` : ""}`;
+  const requiredInFirmware = Boolean(state.modal?.requiredInFirmware ?? item?.requiredInFirmware);
+  const metadataEditable = !item || canEditFunctionMetadata(item);
+  const metadataDisabled = metadataEditable ? "" : "disabled";
+  const image = state.functionDraftImage || item?.image || "";
+  const lockNotice = metadataEditable ? "" : `<div class="info-strip function-edit-lock"><strong>基础资料已锁定</strong><span>功能已有发布版本，当前仅支持调整“固件必配”。</span></div>`;
+  const uploadHint = metadataEditable ? "支持 .jpg、.png、.jpeg，建议使用 1:1 图片" : "已发布功能的示例图不可修改";
+  const profileSection = `<section class="modal-form-section"><h3>功能资料</h3>${lockNotice}<div class="modal-form">${selectField("所属产品线", "modal-function-line", productLines, item?.productLine || line, true, item ? "disabled" : "")}${formField("功能项名称", "modal-function-name", item?.name || "", "请输入功能项名称", true, metadataDisabled)}${formField("功能标识", "modal-function-identifier", item?.identifier || "", "英文开头，仅支持字母、数字和下划线", true, item ? "disabled" : "")}${selectField("功能分类", "modal-function-category", functionCategories, item?.category || functionCategories[0], true, metadataDisabled)}${functionFirmwarePolicyField(requiredInFirmware)}<div class="form-row required"><label>功能说明</label><textarea data-role="modal-function-desc" placeholder="简要描述功能用途和使用场景" ${metadataDisabled}>${escapeHtml(item?.remark || "")}</textarea></div><div class="form-row required"><label>示例图</label><div><label class="upload-box ${metadataEditable ? "" : "is-disabled"}">${image ? `<img class="upload-preview" src="${image}" alt="预览">` : `<span><span class="upload-plus">＋</span>点击上传</span>`}<input type="file" accept="image/png,image/jpeg" data-role="function-upload" ${metadataDisabled}></label><div class="upload-hint">${uploadHint}</div></div></div></div></section>`;
+  const initialVersionSection = includeInitialVersion ? `<section class="modal-form-section"><h3>首版信息</h3><div class="modal-form"><div class="form-row"><label>版本号</label><div class="form-static-value"><strong>V1</strong><span>系统自动生成</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-initial-version-changelog" placeholder="说明首版提供的能力和适用场景"></textarea></div></div></section>` : "";
+  return `${profileSection}${initialVersionSection}`;
 }
 
 function globalFunctionDetailBody(capabilityId) {
@@ -1940,10 +1986,12 @@ function configTabContent(tab) {
     const rows = state.configFunctions.map((binding, index) => {
       const normalized = typeof binding === "string" ? { functionId: binding, versionId: "" } : binding;
       const item = functions.find((entry) => entry.id === normalized.functionId);
-      const version = item?.versions.find((entry) => entry.id === normalized.versionId) || latestPublishedVersion(item);
-      return { item, version, index };
-    }).filter((row) => row.item && row.version);
-    return `<div class="info-strip">ⓘ 机型绑定明确的已发布功能版本，新版本发布后不会自动替换当前配置。</div><div class="config-controls"><button class="btn btn-primary" data-action="config-function-add">＋ 添加功能</button><span>已配置 ${rows.length} 项</span></div><div class="data-table-wrap"><table class="mini-table"><thead><tr><th>功能名称</th><th>产品线</th><th>功能分类</th><th>绑定版本</th><th>版本状态</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ item, version, index }) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.productLine)}</td><td>${escapeHtml(item.category)}</td><td><strong>${version.label}</strong></td><td>${functionStatusTag(version.status)}</td><td><button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="function" data-index="${index}">删除</button></td></tr>`).join("") : `<tr><td colspan="6"><div class="empty-state">暂未配置功能</div></td></tr>`}</tbody></table></div>`;
+      const version = item?.versions.find((entry) => entry.id === normalized.versionId) || null;
+      return { item, version, binding: normalized, index };
+    }).filter((row) => row.item);
+    const requiredCount = rows.filter(({ item }) => item.requiredInFirmware).length;
+    const unresolved = rows.filter(({ item, version }) => item.requiredInFirmware && (!version || version.status !== "已发布"));
+    return `<div class="info-strip config-function-guide"><strong>必配能力会按产品线自动带出并优先选择推荐版本</strong><span>未选择版本时可以保存，但正式发布前必须补齐；新版本发布后不会自动替换已选版本。</span></div>${unresolved.length ? `<div class="warning-strip config-function-warning"><strong>${unresolved.length} 项必配能力待选择版本</strong><span>${unresolved.map(({ item }) => escapeHtml(item.name)).join("、")}</span></div>` : ""}<div class="config-controls"><button class="btn btn-primary" data-action="config-function-add">＋ 添加可选功能</button><span>已配置 ${rows.length} 项 · 必配 ${requiredCount} 项</span></div><div class="data-table-wrap"><table class="mini-table config-function-table"><thead><tr><th>功能名称</th><th>配置要求</th><th>绑定版本</th><th>版本标识</th><th>版本状态</th><th>配置来源</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ item, version, binding, index }) => `<tr class="${item.requiredInFirmware && (!version || version.status !== "已发布") ? "needs-attention" : ""}"><td><div class="config-function-name"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.category)}</small></div></td><td>${item.requiredInFirmware ? `<span class="function-policy-tag required">必配</span>` : `<span class="function-policy-tag optional">可选</span>`}</td><td>${version ? `<strong>${version.label}</strong>` : `<span class="config-version-empty">待选择</span>`}</td><td>${version ? functionVersionSignalTags(version) || "-" : "-"}</td><td>${version ? functionStatusTag(version.status) : `<span class="function-status pending">待配置</span>`}</td><td>${binding.source === "required-auto" ? `<span class="config-source-tag auto">系统带出</span>` : `<span class="config-source-tag">手工添加</span>`}</td><td><button class="btn btn-text" data-action="config-function-version" data-function="${item.id}">${version ? "更换版本" : "选择版本"}</button>${item.requiredInFirmware ? "" : `<button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="function" data-index="${index}">删除</button>`}</td></tr>`).join("") : `<tr><td colspan="7"><div class="empty-state">当前产品线暂无可配置功能</div></td></tr>`}</tbody></table></div>`;
   }
   if (tab === "parameter") return `<div class="info-strip">ⓘ 参数配置会随机型发布并用于设备能力描述。</div><div class="config-controls"><button class="btn btn-primary" data-action="config-param-add">＋ 添加参数</button><span>已配置 ${state.configParameters.length} 项</span></div><div class="data-table-wrap"><table class="mini-table"><thead><tr><th>参数名</th><th>中文名</th><th>参数类型</th><th>默认值</th><th>操作</th></tr></thead><tbody>${state.configParameters.length ? state.configParameters.map((item, index) => `<tr><td>${escapeHtml(item.key)}</td><td>${escapeHtml(item.label)}</td><td>${item.type}</td><td>${escapeHtml(item.defaultValue)}</td><td><button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="parameter" data-index="${index}">删除</button></td></tr>`).join("") : `<tr><td colspan="5"><div class="empty-state">暂无数据</div></td></tr>`}</tbody></table></div>`;
   return `<div class="info-strip">ⓘ 配置生产测试项、等待时间和检测方式，用于出厂检测。</div><div class="config-controls"><button class="btn btn-primary" data-action="config-test-add">＋ 添加测试项</button><span>已配置 ${state.configTests.length} 项</span></div><div class="data-table-wrap"><table class="mini-table test-table"><thead><tr>${testColumns.map((title) => `<th>${title}</th>`).join("")}</tr></thead><tbody>${state.configTests.length ? state.configTests.map(configTestRow).join("") : `<tr><td colspan="${testColumns.length}"><div class="empty-state">暂无数据</div></td></tr>`}</tbody></table></div>`;
@@ -2032,24 +2080,16 @@ function modelDataSpecEditor(dataType, dataSpecValue, context = {}) {
   return `<div class="model-data-spec-editor model-struct-editor"><div class="model-spec-caption"><strong>结构体字段</strong><span>暂不支持结构体或数组嵌套</span></div><div class="model-struct-list">${dataSpec.fields.length ? dataSpec.fields.map((item, index) => `<div class="model-struct-row"><div class="model-struct-fields"><label><span>字段名称</span><input data-role="model-struct-field" data-owner="${ownerScope}" data-struct-index="${index}" data-field="name" maxlength="50" value="${escapeHtml(item.name)}" placeholder="请输入字段名称"></label><label><span>标识符</span><input data-role="model-struct-field" data-owner="${ownerScope}" data-struct-index="${index}" data-field="identifier" maxlength="50" value="${escapeHtml(item.identifier)}" placeholder="field_id"></label><label><span>数据类型</span><select data-role="model-struct-field" data-owner="${ownerScope}" data-struct-index="${index}" data-field="dataType">${MODEL_STRUCT_FIELD_TYPES.map((type) => `<option ${type === item.dataType ? "selected" : ""}>${type}</option>`).join("")}</select></label></div><button type="button" class="model-param-delete" data-action="model-struct-remove" data-owner="${ownerScope}" data-struct-index="${index}" title="删除字段" aria-label="删除字段">×</button>${modelDataSpecEditor(item.dataType, item.dataSpec, { scope: "struct-field", ownerScope, structIndex: index })}</div>`).join("") : `<div class="model-param-empty">暂未添加结构体字段</div>`}</div><button type="button" class="btn btn-text model-spec-add" data-action="model-struct-add" data-owner="${ownerScope}">＋ 添加字段</button></div>`;
 }
 
-function createModelParameterDraft(row = null, allowDefaultValue = false) {
-  const normalized = normalizeModelParameterList(row ? [row] : [{ name: "", identifier: "", dataType: "字符型(String)" }], allowDefaultValue)[0];
-  return {
-    ...normalized,
-    required: allowDefaultValue ? normalized.required : true,
-    defaultValue: allowDefaultValue ? normalized.defaultValue : "",
-    hasDefaultValue: allowDefaultValue ? normalized.hasDefaultValue : false,
-  };
+function createModelParameterDraft(row = null, supportsRequired = false) {
+  return normalizeModelParameterList(row ? [row] : [{ name: "", identifier: "", dataType: "字符型(String)" }], supportsRequired)[0];
 }
 
-function modelParameterSummary(value, allowDefaultValue) {
-  if (!allowDefaultValue) return "无默认值";
-  if (value.required) return "必填";
-  return value.hasDefaultValue ? `可选 · 默认值 ${value.defaultValue === "" ? "空字符串" : value.defaultValue}` : "可选 · 未设置默认值";
+function modelParameterSummary(value, supportsRequired) {
+  return supportsRequired ? value.required ? "必填" : "可选" : "输出参数";
 }
 
-function modelParameterEditor(label, direction, values, allowDefaultValue = false) {
-  return `<section class="model-param-group"><div class="model-param-head"><div><strong>${label}</strong><span>${values.length} 项</span></div><button type="button" class="btn btn-text" data-action="model-param-add" data-param="${direction}" data-allow-default="${allowDefaultValue}">＋ 添加参数</button></div>${values.length ? `<div class="model-param-summary-list">${values.map((value, index) => `<div class="model-param-summary-row"><div class="model-param-identity"><strong>${escapeHtml(value.name || "未命名参数")}</strong><code>${escapeHtml(value.identifier || "未填写标识符")}</code></div><div class="model-param-type"><span>${escapeHtml(value.dataType)}</span><small>${escapeHtml(value.dataDefinition || "待完善数据定义")}</small></div><span class="model-param-rule">${escapeHtml(modelParameterSummary(value, allowDefaultValue))}</span><div class="model-param-actions"><button type="button" class="btn btn-text" data-action="model-param-edit" data-param="${direction}" data-index="${index}" data-allow-default="${allowDefaultValue}">编辑</button><button type="button" class="btn btn-text danger-text" data-action="model-param-remove" data-param="${direction}" data-index="${index}">删除</button></div></div>`).join("")}</div>` : `<div class="model-param-empty">暂无参数</div>`}</section>`;
+function modelParameterEditor(label, direction, values, supportsRequired = false) {
+  return `<section class="model-param-group"><div class="model-param-head"><div><strong>${label}</strong><span>${values.length} 项</span></div><button type="button" class="btn btn-text" data-action="model-param-add" data-param="${direction}" data-supports-required="${supportsRequired}">＋ 添加参数</button></div>${values.length ? `<div class="model-param-summary-list">${values.map((value, index) => `<div class="model-param-summary-row"><div class="model-param-identity"><strong>${escapeHtml(value.name || "未命名参数")}</strong><code>${escapeHtml(value.identifier || "未填写标识符")}</code></div><div class="model-param-type"><span>${escapeHtml(value.dataType)}</span><small>${escapeHtml(value.dataDefinition || "待完善数据定义")}</small></div><span class="model-param-rule">${escapeHtml(modelParameterSummary(value, supportsRequired))}</span><div class="model-param-actions"><button type="button" class="btn btn-text" data-action="model-param-edit" data-param="${direction}" data-index="${index}" data-supports-required="${supportsRequired}">编辑</button><button type="button" class="btn btn-text danger-text" data-action="model-param-remove" data-param="${direction}" data-index="${index}">删除</button></div></div>`).join("")}</div>` : `<div class="model-param-empty">暂无参数</div>`}</section>`;
 }
 
 function modelFieldError(message) {
@@ -2188,7 +2228,7 @@ function modelStructDefaultFieldControl(field, value, included, index, ownerScop
 }
 
 function modelDefaultOwner(ownerScope) {
-  return ownerScope === "parameter-dialog" ? state.modal?.paramEditor?.draft || null : state.modal?.draft || null;
+  return ownerScope === "property" && state.modal?.draft?.kind === "property" ? state.modal.draft : null;
 }
 
 function modelComplexDefaultList(owner, context, error = "") {
@@ -2221,35 +2261,24 @@ function modelParameterDialog(modal) {
   if (!editor) return "";
   const draft = editor.draft;
   const errors = editor.errors || {};
-  const defaultField = editor.allowDefaultValue
-    ? draft.required
-      ? `<div class="model-inline-note">必填参数由调用方传值，不配置默认值。</div>`
-      : modelDefaultConfiguration(draft, { ownerScope: "parameter-dialog", roleName: "model-param-dialog-default" }, errors.defaultValue)
-    : "";
   const changeConfirm = editor.changeConfirm
     ? modelParameterConfirm(
         editor.changeConfirm.kind === "elementType" ? "确认切换元素类型" : "确认切换数据类型",
-        editor.changeConfirm.kind === "elementType" ? "切换后将清除当前元素规则和数组默认值。" : "切换后将清除当前数据定义和默认值。",
+        editor.changeConfirm.kind === "elementType" ? "切换后将清除当前元素规则。" : "切换后将清除当前数据定义。",
         "model-param-change-cancel",
         "model-param-change-confirm",
         "确认切换",
       )
     : "";
-  const requiredConfirm = editor.requiredConfirm
-    ? modelParameterConfirm("确认切换为必填", "切换后将清除已经配置的默认值。", "model-param-required-cancel", "model-param-required-confirm", "切换并清除")
-    : "";
   const closeConfirm = editor.closeConfirm
     ? modelParameterConfirm("放弃本次编辑？", "当前参数存在未保存的修改，关闭后将无法恢复。", "model-param-discard-return", "model-param-discard-confirm", "放弃修改")
     : "";
-  const defaultDisableConfirm = editor.defaultDisableConfirm
-    ? modelParameterConfirm("改为不设置默认值？", "继续后将清除当前已经配置的默认值。", "model-default-disable-cancel", "model-default-disable-confirm", "确认清除")
-    : "";
   const resetNotice = editor.typeResetNotice
-    ? `<div class="warning-strip model-reset-warning">数据类型已切换，原数据定义和默认值已重置。</div>`
+    ? `<div class="warning-strip model-reset-warning">数据类型已切换，原数据定义已重置。</div>`
     : editor.elementResetNotice
-      ? `<div class="warning-strip model-reset-warning">数组元素类型已切换，原元素规则和默认值已重置。</div>`
+      ? `<div class="warning-strip model-reset-warning">数组元素类型已切换，原元素规则已重置。</div>`
       : "";
-  return `<div class="model-param-dialog-backdrop" data-action="model-param-dialog-close"><section class="model-param-dialog" role="dialog" aria-modal="true" aria-label="${Number.isInteger(editor.index) ? "编辑参数" : "添加参数"}"><div class="modal-header"><div><h2>${Number.isInteger(editor.index) ? "编辑参数" : "添加参数"}</h2><span>${editor.direction === "inputParams" ? "输入参数" : "输出参数"}</span></div><button class="modal-close" data-action="model-param-dialog-close" title="关闭">×</button></div><div class="modal-body">${resetNotice}<div class="modal-form model-param-dialog-form">${modelCountedField("参数名称", "model-param-dialog-name", draft.name, "请输入参数名称", true, 50, errors.name)}${modelCountedField("标识符", "model-param-dialog-identifier", draft.identifier, "请输入英文标识符", true, 50, errors.identifier)}${selectField("数据类型", "model-param-dialog-data-type", MODEL_DATA_TYPES, draft.dataType, true)}<div class="model-spec-validation ${errors.dataSpec ? "has-error" : ""}">${modelDataSpecEditor(draft.dataType, draft.dataSpec, { scope: "parameter-dialog" })}${modelFieldError(errors.dataSpec)}</div>${editor.allowDefaultValue ? modelChoiceField("是否必填", "model-param-required", draft.required ? "必填" : "可选", ["必填", "可选"]) : ""}${defaultField}</div></div><div class="modal-footer"><button class="btn" data-action="model-param-dialog-close">取消</button><button class="btn btn-primary" data-action="model-param-save">完成</button></div>${changeConfirm}${requiredConfirm}${defaultDisableConfirm}${closeConfirm}</section></div>`;
+  return `<div class="model-param-dialog-backdrop" data-action="model-param-dialog-close"><section class="model-param-dialog" role="dialog" aria-modal="true" aria-label="${Number.isInteger(editor.index) ? "编辑参数" : "添加参数"}"><div class="modal-header"><div><h2>${Number.isInteger(editor.index) ? "编辑参数" : "添加参数"}</h2><span>${editor.direction === "inputParams" ? "输入参数" : "输出参数"}</span></div><button class="modal-close" data-action="model-param-dialog-close" title="关闭">×</button></div><div class="modal-body">${resetNotice}<div class="modal-form model-param-dialog-form">${modelCountedField("参数名称", "model-param-dialog-name", draft.name, "请输入参数名称", true, 50, errors.name)}${modelCountedField("标识符", "model-param-dialog-identifier", draft.identifier, "请输入英文标识符", true, 50, errors.identifier)}${selectField("数据类型", "model-param-dialog-data-type", MODEL_DATA_TYPES, draft.dataType, true)}<div class="model-spec-validation ${errors.dataSpec ? "has-error" : ""}">${modelDataSpecEditor(draft.dataType, draft.dataSpec, { scope: "parameter-dialog" })}${modelFieldError(errors.dataSpec)}</div>${editor.supportsRequired ? modelChoiceField("是否必填", "model-param-required", draft.required ? "必填" : "可选", ["必填", "可选"]) : ""}</div></div><div class="modal-footer"><button class="btn" data-action="model-param-dialog-close">取消</button><button class="btn btn-primary" data-action="model-param-save">完成</button></div>${changeConfirm}${closeConfirm}</section></div>`;
 }
 
 function modelFormSection(index, title, description, body, className = "") {
@@ -2271,7 +2300,7 @@ function modelFormBody(modal) {
     sections += modelFormSection("03", "默认值", "默认值必须符合当前数据定义", defaultField, "model-form-default-section");
   } else if (draft.kind === "service") {
     sections += modelFormSection("02", "调用定义", "同步或异步调用方式", modelChoiceField("调用方式", "model-call-type", draft.callType, ["同步", "异步"]), "model-form-definition-section");
-    sections += modelFormSection("03", "参数定义", "可选输入参数可在参数编辑中配置默认值", `${modelParameterEditor("输入参数", "inputParams", draft.inputParams, true)}${modelParameterEditor("输出参数", "outputParams", draft.outputParams)}`, "model-form-parameter-section");
+    sections += modelFormSection("03", "参数定义", "输入参数可设置必填或可选，服务参数不配置默认值", `${modelParameterEditor("输入参数", "inputParams", draft.inputParams, true)}${modelParameterEditor("输出参数", "outputParams", draft.outputParams)}`, "model-form-parameter-section");
   } else {
     sections += modelFormSection("02", "输出参数", "事件参数由设备上报，不配置默认值", modelParameterEditor("输出参数", "outputParams", draft.outputParams), "model-form-parameter-section");
   }
@@ -2298,9 +2327,14 @@ function modelFormBody(modal) {
         "确认切换",
       )
     : "";
+  const saveScope = draft.kind === "property"
+    ? "数据定义和属性默认值"
+    : draft.kind === "service"
+      ? "调用方式和输入、输出参数"
+      : "事件输出参数";
   const stateNote = modal.readOnly
     ? `<div class="model-form-state-note locked"><strong>当前版本配置已锁定</strong><span>以下内容仅供查看，如需调整请创建或撤回为草稿版本。</span></div>`
-    : `<div class="model-form-state-note"><strong>统一配置</strong><span>数据定义、参数和默认值将在保存后一起写入当前草稿版本。</span></div>`;
+    : `<div class="model-form-state-note"><strong>统一配置</strong><span>${saveScope}将在保存后一起写入当前草稿版本。</span></div>`;
   return `${stateNote}${modal.typeResetNotice ? `<div class="warning-strip model-reset-warning">数据类型已切换，原数据定义和默认值已重置；取消本次编辑可放弃该变更。</div>` : ""}<fieldset class="model-form-fieldset" ${modal.readOnly ? "disabled" : ""}><div class="modal-form model-drawer-form">${sections}</div></fieldset>${modal.readOnly ? "" : modelParameterDialog(modal)}${defaultDisableConfirm}${accessDefaultConfirm}${typeChangeConfirm}`;
 }
 
@@ -2397,7 +2431,7 @@ function renderModal() {
     footer = item && version && targetLine ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">复制并创建 V1</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "function-form") {
     const item = modal.id ? functions.find((entry) => entry.id === modal.id) : null;
-    title = "编辑功能资料";
+    title = "编辑功能";
     body = item ? functionBasicFormFields(item, item.productLine, false) : `<div class="empty-state">该功能已不存在</div>`;
     footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">完成</button>`;
   } else if (modal.type === "function-version-info") {
@@ -2419,8 +2453,10 @@ function renderModal() {
     const version = item ? selectedFunctionVersion(item) : null;
     const spec = item && version ? getModelSpec(item.id, version.id) : { properties: [], services: [], events: [], hardware: [] };
     const modelError = modelSpecValidationError(spec);
+    const currentRecommended = item ? recommendedFunctionVersion(item) : null;
+    const recommendOnPublish = Boolean(modal.recommendOnPublish);
     title = `发布功能版本 · ${version?.label || ""}`;
-    body = `<div class="release-checklist"><div><span>物模型（可选）</span><strong>${spec.properties.length + spec.services.length + spec.events.length} 项</strong></div><div><span>关联硬件（可选）</span><strong>${spec.hardware.length} 项</strong></div></div><div class="form-static-value release-version-description"><span>版本说明</span><strong>${escapeHtml(version?.changelog || "-")}</strong></div>${modelError ? `<div class="warning-strip model-preflight-error"><strong>物模型配置未完成</strong><span>${escapeHtml(modelError)}；请撤回草稿后修正。</span></div>` : `<div class="success-strip"><strong>配置校验通过</strong><span>当前版本可以发布</span></div>`}<div class="info-strip">发布后当前版本将成为正式版本，可由同产品线的固件发布配置选择并建立关联。</div>`;
+    body = `<div class="release-checklist"><div><span>物模型（可选）</span><strong>${spec.properties.length + spec.services.length + spec.events.length} 项</strong></div><div><span>关联硬件（可选）</span><strong>${spec.hardware.length} 项</strong></div></div><div class="form-static-value release-version-description"><span>版本说明</span><strong>${escapeHtml(version?.changelog || "-")}</strong></div><div class="release-recommend-setting"><div><strong>发布后设为推荐版本</strong><span>推荐版本将在固件能力配置时优先选中。</span></div><div class="release-switch-control">${functionPolicySwitch("function-publish-recommend-toggle", recommendOnPublish, `${recommendOnPublish ? "取消" : "开启"}发布后推荐`)}<span>${recommendOnPublish ? "是" : "否"}</span></div></div>${recommendOnPublish && currentRecommended ? `<div class="warning-strip"><strong>将替换当前推荐版本 ${currentRecommended.label}</strong><span>已有固件关联不会改变，新固件配置将优先使用 ${version?.label || "当前版本"}。</span></div>` : ""}${modelError ? `<div class="warning-strip model-preflight-error"><strong>物模型配置未完成</strong><span>${escapeHtml(modelError)}；请撤回草稿后修正。</span></div>` : `<div class="success-strip"><strong>配置校验通过</strong><span>当前版本可以发布</span></div>`}<div class="info-strip">发布后当前版本将成为正式版本，可由同产品线的固件发布配置选择并建立关联。</div>`;
     footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm" ${modelError ? "disabled" : ""}>确认发布</button>`;
   } else if (modal.type === "function-version-snapshot") {
     const item = functions.find((entry) => entry.id === modal.id);
@@ -2431,7 +2467,7 @@ function renderModal() {
     drawer = true;
     body = item && version ? functionVersionSnapshotBody(item, version) : `<div class="empty-state">该版本已不存在</div>`;
     const statusAction = version?.status === "已发布"
-      ? `<button class="btn" data-action="function-disable-version" data-id="${item.id}" data-version="${version.id}">停用版本</button>`
+      ? `<button class="btn" data-action="function-recommend-version" data-id="${item.id}" data-version="${version.id}" data-value="${version.recommended ? "false" : "true"}">${version.recommended ? "取消推荐" : "设为推荐"}</button><button class="btn" data-action="function-disable-version" data-id="${item.id}" data-version="${version.id}">停用版本</button>`
       : version?.status === "已停用" ? `<button class="btn" data-action="function-restore-version" data-id="${item.id}" data-version="${version.id}">恢复版本</button>` : "";
     const primaryAction = working
       ? `<button class="btn btn-primary" data-action="function-open-workspace" data-id="${item?.id || ""}" data-version="${working.id}">进入 ${working.label} 工作区</button>`
@@ -2455,7 +2491,19 @@ function renderModal() {
       : modal.nextStatus === "草稿"
         ? "版本将解除锁定并回到草稿；修改完成后需要重新提交测试。"
         : "恢复后可再次被固件发布配置选择，既有关联不受影响。";
-    body = `<div class="confirm-copy">确认将“${escapeHtml(item?.name || "该功能")} ${version?.label || ""}”变更为“${modal.nextStatus}”吗？${statusHint}</div>`;
+    const relations = functionFirmwareRelations(version).length;
+    const alternatives = item?.versions.filter((entry) => entry.id !== version?.id && entry.status === "已发布") || [];
+    const replacement = modal.nextStatus === "已停用" && version?.recommended && alternatives.length
+      ? `<div class="form-row"><label>新的推荐版本</label><select data-role="modal-replacement-recommend"><option value="">暂不设置</option>${alternatives.map((entry, index) => `<option value="${entry.id}" ${index === 0 ? "selected" : ""}>${entry.label}${functionFirmwareRelations(entry).length ? ` · 在用 ${functionFirmwareRelations(entry).length}` : ""}</option>`).join("")}</select><small>停用后原推荐标识将自动取消。</small></div>`
+      : "";
+    body = `<div class="confirm-copy">确认将“${escapeHtml(item?.name || "该功能")} ${version?.label || ""}”变更为“${modal.nextStatus}”吗？${statusHint}</div>${relations && modal.nextStatus === "已停用" ? `<div class="warning-strip"><strong>已有 ${relations} 个固件版本关联</strong><span>停用不会解除这些关联，但新固件不能再选择该版本。</span></div>` : ""}${version?.recommended && modal.nextStatus === "已停用" ? `<div class="warning-strip"><strong>当前版本是推荐版本</strong><span>${alternatives.length ? "可同时指定新的推荐版本，保证必配能力继续自动选版。" : "停用后将暂无推荐版本，后续固件配置需要人工选择。"}</span></div>` : ""}${replacement ? `<div class="modal-form version-replacement-form">${replacement}</div>` : ""}`;
+  } else if (modal.type === "function-recommend-version") {
+    const item = functions.find((entry) => entry.id === modal.id);
+    const version = item?.versions.find((entry) => entry.id === modal.versionId);
+    const currentRecommended = item ? recommendedFunctionVersion(item) : null;
+    title = modal.nextRecommended ? "设为推荐版本" : "取消推荐版本";
+    body = item && version ? `<div class="confirm-copy">${modal.nextRecommended ? `将“${escapeHtml(item.name)} ${version.label}”设为推荐版本吗？固件能力配置将优先选择该版本。` : `取消“${escapeHtml(item.name)} ${version.label}”的推荐标识吗？版本仍保持已发布状态。`}</div>${modal.nextRecommended && currentRecommended && currentRecommended.id !== version.id ? `<div class="warning-strip"><strong>将替换 ${currentRecommended.label}</strong><span>已有固件关联不变，仅调整后续配置的优先版本。</span></div>` : ""}${!modal.nextRecommended && item.requiredInFirmware ? `<div class="warning-strip"><strong>该功能是固件必配能力</strong><span>取消后，新固件配置需要人工选择已发布版本。</span></div>` : ""}` : `<div class="empty-state">版本已不存在</div>`;
+    footer = item && version ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">确认</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "function-delete-confirm") {
     const item = functions.find((entry) => entry.id === modal.id);
     title = "删除功能";
@@ -2527,9 +2575,10 @@ function renderModal() {
     footer = `<button class="btn btn-primary" data-action="modal-close">关闭预览</button>`;
   } else if (modal.type === "publish") {
     const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
+    const requiredGaps = requiredFunctionBindingGaps(machine.id);
     title = "发布机型";
-    body = `<div class="confirm-copy">发布后“${escapeHtml(machine.name)}”的配置将进入正式状态。${state.configHardware.some((item) => item.model) ? "当前硬件配置已就绪。" : "当前仍有未配置的硬件项。"}确认继续发布吗？</div>`;
-    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">确认发布</button>`;
+    body = `<div class="confirm-copy">发布后“${escapeHtml(machine.name)}”的配置将进入正式状态。</div><div class="release-checklist"><div><span>硬件配置</span><strong>${state.configHardware.length && state.configHardware.every((item) => item.model) ? "已完成" : "待完善"}</strong></div><div><span>必配能力</span><strong>${requiredGaps.length ? `${requiredGaps.length} 项待选择` : "已完成"}</strong></div></div>${requiredGaps.length ? `<div class="warning-strip"><strong>请先补齐必配能力版本</strong><span>${requiredGaps.map((item) => escapeHtml(item.name)).join("、")}</span></div>` : `<div class="success-strip"><strong>必配能力已完整配置</strong><span>当前配置可以继续发布。</span></div>`}`;
+    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm" ${requiredGaps.length ? "disabled" : ""}>确认发布</button>`;
   } else if (modal.type === "config-category") {
     const availableCategories = ["PCBA", "镜头", "灯板", "电源板", "电池", "天线", "麦克风"].filter((category) => !state.configHardware.some((item) => item.category === category));
     title = "添加硬件类目";
@@ -2544,9 +2593,16 @@ function renderModal() {
     title = "添加功能";
     const machine = machines.find((entry) => entry.id === activeMachineId()) || machines[0];
     const existingIds = state.configFunctions.map((binding) => typeof binding === "string" ? binding : binding.functionId);
-    const available = functions.filter((item) => item.productLine === machine.line && !existingIds.includes(item.id)).flatMap((item) => item.versions.filter((version) => version.status === "已发布").map((version) => ({ item, version })));
-    body = available.length ? `<div class="info-strip">仅显示 ${escapeHtml(machine.line)} 产品线下已发布的功能版本。</div><div class="modal-form"><div class="form-row required"><label>功能版本</label><select data-role="modal-config-function"><option value="">请选择功能版本</option>${available.map(({ item, version }) => `<option value="${item.id}|${version.id}">${escapeHtml(item.name)} · ${version.label}（${escapeHtml(item.category)}）</option>`).join("")}</select></div></div>` : `<div class="empty-state">当前产品线暂无可添加的已发布功能版本</div>`;
+    const available = functions.filter((item) => item.productLine === machine.line && !existingIds.includes(item.id)).flatMap((item) => publishedFunctionVersions(item).map((version) => ({ item, version }))).sort((a, b) => Number(Boolean(b.version.recommended)) - Number(Boolean(a.version.recommended)) || a.item.name.localeCompare(b.item.name, "zh-CN") || (b.version.number || 0) - (a.version.number || 0));
+    body = available.length ? `<div class="info-strip">仅显示 ${escapeHtml(machine.line)} 产品线下可选的已发布版本，推荐版本已置顶。</div><div class="modal-form"><div class="form-row required"><label>功能版本</label><select data-role="modal-config-function"><option value="">请选择功能版本</option>${available.map(({ item, version }) => `<option value="${item.id}|${version.id}">${escapeHtml(item.name)} · ${version.label}${version.recommended ? " · 推荐" : ""}${functionFirmwareRelations(version).length ? ` · 在用 ${functionFirmwareRelations(version).length}` : ""}</option>`).join("")}</select></div></div>` : `<div class="empty-state">当前产品线暂无可添加的已发布功能版本</div>`;
     footer = available.length ? footer : `<button class="btn btn-primary" data-action="modal-close">关闭</button>`;
+  } else if (modal.type === "config-function-version") {
+    const item = functions.find((entry) => entry.id === modal.functionId);
+    const versions = publishedFunctionVersions(item);
+    const binding = state.configFunctions.find((entry) => (typeof entry === "string" ? entry : entry.functionId) === item?.id);
+    title = `选择功能版本 · ${item?.name || ""}`;
+    body = item && versions.length ? `<div class="info-strip">推荐表示平台优先建议；“在用”数量来自实际固件关联。</div><div class="modal-form"><div class="form-row required"><label>已发布版本</label><select data-role="modal-config-function-version">${versions.map((version) => `<option value="${version.id}" ${version.id === binding?.versionId || (!binding?.versionId && version.recommended) ? "selected" : ""}>${version.label}${version.recommended ? " · 推荐" : ""}${functionFirmwareRelations(version).length ? ` · 在用 ${functionFirmwareRelations(version).length}` : ""}</option>`).join("")}</select></div></div>` : `<div class="empty-state">当前功能暂无可选择的已发布版本</div>`;
+    footer = item && versions.length ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">确认选择</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "config-parameter") {
     title = "添加参数";
     body = `<div class="modal-form">${formField("参数名", "modal-config-param-key", "", "请输入英文参数名", true)}${formField("中文名", "modal-config-param-label", "", "请输入中文名", true)}${selectField("参数类型", "modal-config-param-type", ["字符串", "数字", "布尔值"], "字符串", true)}${formField("默认值", "modal-config-param-default", "", "请输入默认值", false)}</div>`;
@@ -2572,7 +2628,8 @@ function renderModal() {
     footer = `<button class="btn btn-primary" data-action="modal-close">关闭</button>`;
   }
 
-  return `<div class="modal-backdrop ${drawer ? "drawer-backdrop" : ""}" data-action="modal-backdrop"><section class="modal ${wide ? "modal-wide" : ""} ${drawer ? "modal-drawer" : ""} ${modelDrawer ? "model-form-drawer" : ""}" role="dialog" aria-modal="true" aria-label="${title}"><div class="modal-header"><h2>${title}</h2><button class="modal-close" data-action="modal-close" title="关闭">×</button></div><div class="modal-body">${body}</div>${footer ? `<div class="modal-footer">${footer}</div>` : ""}</section></div>`;
+  const functionDialogClass = ["function-create-entry", "function-form"].includes(modal.type) ? "function-profile-dialog" : "";
+  return `<div class="modal-backdrop ${drawer ? "drawer-backdrop" : ""}" data-action="modal-backdrop"><section class="modal ${wide ? "modal-wide" : ""} ${drawer ? "modal-drawer" : ""} ${modelDrawer ? "model-form-drawer" : ""} ${functionDialogClass}" role="dialog" aria-modal="true" aria-label="${title}"><div class="modal-header"><h2>${title}</h2><button class="modal-close" data-action="modal-close" title="关闭">×</button></div><div class="modal-body">${body}</div>${footer ? `<div class="modal-footer">${footer}</div>` : ""}</section></div>`;
 }
 
 function pageForRoute(current) {
@@ -2699,6 +2756,10 @@ function restorePersistentState() {
 function normalizeFunctionData() {
   functions.forEach((item) => {
     if (!item.capabilityId) item.capabilityId = `capability:${item.identifier || item.id}`;
+    if (typeof item.requiredInFirmware !== "boolean") item.requiredInFirmware = ["f1", "f2", "f8"].includes(item.id);
+    const hasRecommendationField = item.versions.some((version) => typeof version.recommended === "boolean");
+    const fallbackRecommendedId = hasRecommendationField ? "" : item.versions.find((version) => version.status === "已发布")?.id || "";
+    let recommendationAssigned = false;
     item.versions.forEach((version) => {
       if (!version.changelog) version.changelog = version.number === 1 ? `${item.name}首版能力配置` : `${item.name} ${version.label} 版本调整`;
       if (version.copiedFrom === undefined) version.copiedFrom = null;
@@ -2708,7 +2769,15 @@ function normalizeFunctionData() {
         if (previous) version.baseVersionId = previous.id;
       }
       const spec = getModelSpec(item.id, version.id);
+      if (version.publishedSnapshot?.config) {
+        normalizeModelSpecData(version.publishedSnapshot.config);
+        if (!Array.isArray(version.publishedSnapshot.config.hardware)) version.publishedSnapshot.config.hardware = [];
+        version.publishedSnapshot.signature = JSON.stringify(functionConfigPayload(version.publishedSnapshot.config));
+      }
       if (version.status === "待发布") version.status = "测试中";
+      const shouldRecommend = version.status === "已发布" && (hasRecommendationField ? version.recommended : version.id === fallbackRecommendedId);
+      version.recommended = Boolean(shouldRecommend && !recommendationAssigned);
+      if (version.recommended) recommendationAssigned = true;
       if (!Array.isArray(version.firmwareRelationHistory)) version.firmwareRelationHistory = [];
       const legacyIdentifiers = Array.isArray(version.firmwareVersions) ? version.firmwareVersions.map((value) => String(value).trim()).filter(Boolean) : [];
       if (!Array.isArray(version.firmwareRelations)) {
@@ -2782,9 +2851,6 @@ function modelSpecHasConfiguration(dataType, dataSpec) {
 function applyModelParameterTypeChange(editor, dataType) {
   editor.draft.dataType = dataType;
   editor.draft.dataSpec = defaultModelDataSpec(dataType);
-  editor.draft.defaultValue = "";
-  editor.draft.hasDefaultValue = false;
-  editor.draft._defaultValuePending = false;
   editor.draft.dataDefinition = modelDataSpecToDefinition(dataType, editor.draft.dataSpec);
   editor.dirty = true;
   editor.errors = {};
@@ -2793,14 +2859,10 @@ function applyModelParameterTypeChange(editor, dataType) {
 function applyArrayElementTypeChange(editor, elementType) {
   editor.draft.dataSpec.elementType = elementType;
   editor.draft.dataSpec.elementSpec = defaultModelDataSpec(elementType);
-  editor.draft.defaultValue = "";
-  editor.draft.hasDefaultValue = false;
-  editor.draft._defaultValuePending = false;
   editor.draft.dataDefinition = modelDataSpecToDefinition(editor.draft.dataType, editor.draft.dataSpec);
   editor.dirty = true;
   if (editor.errors) {
     delete editor.errors.dataSpec;
-    delete editor.errors.defaultValue;
   }
 }
 
@@ -2829,7 +2891,7 @@ function applyModelPropertyArrayElementTypeChange(modal, elementType) {
 }
 
 function modelDefaultEditorHost(ownerScope) {
-  return ownerScope === "parameter-dialog" ? state.modal?.paramEditor || null : state.modal || null;
+  return ownerScope === "property" && state.modal?.draft?.kind === "property" ? state.modal : null;
 }
 
 function markModelDefaultOwnerDirty(ownerScope) {
@@ -2840,7 +2902,6 @@ function markModelDefaultOwnerDirty(ownerScope) {
 function clearModelDefaultOwnerError(ownerScope) {
   const host = modelDefaultEditorHost(ownerScope);
   if (!host) return;
-  if (host.errors) delete host.errors.defaultValue;
   if (ownerScope === "property") host.defaultValueError = "";
 }
 
@@ -2901,8 +2962,8 @@ function syncModelDraftInput(target) {
   const counter = target.closest?.(".model-counted-field")?.querySelector(".field-counter");
   if (counter && target.maxLength > 0) counter.textContent = `${target.value.length} / ${target.maxLength}`;
   if (target.closest?.(".model-param-dialog")) clearVisibleModelFieldError(target);
-  if (target.matches('[data-role="model-param-dialog-default-datetime"], [data-role="modal-model-default-datetime"]')) {
-    const ownerScope = target.dataset.owner === "parameter-dialog" || target.dataset.role.startsWith("model-param-dialog") ? "parameter-dialog" : "property";
+  if (target.matches('[data-role="modal-model-default-datetime"]')) {
+    const ownerScope = "property";
     const owner = modelDefaultOwner(ownerScope);
     if (!owner) return false;
     const spec = parseModelDataSpec(owner.dataType, "", owner.dataSpec);
@@ -2959,13 +3020,12 @@ function syncModelDraftInput(target) {
       "model-param-dialog-name": "name",
       "model-param-dialog-identifier": "identifier",
       "model-param-dialog-data-type": "dataType",
-      "model-param-dialog-default": "defaultValue",
     };
     const field = fieldMap[target.dataset.role];
     if (!field) return false;
     if (field === "dataType" && editor.draft.dataType !== target.value) {
       if (editor.changeConfirm?.kind === "dataType" && editor.changeConfirm.value === target.value) return true;
-      if (modelSpecHasConfiguration(editor.draft.dataType, editor.draft.dataSpec) || editor.draft.hasDefaultValue) {
+      if (modelSpecHasConfiguration(editor.draft.dataType, editor.draft.dataSpec)) {
         editor.changeConfirm = { kind: "dataType", value: target.value };
       } else {
         applyModelParameterTypeChange(editor, target.value);
@@ -2973,14 +3033,8 @@ function syncModelDraftInput(target) {
       }
     } else {
       editor.draft[field] = target.value;
-      if (field === "defaultValue") {
-        editor.draft.hasDefaultValue = true;
-        editor.draft._defaultValuePending = target.value === "" && editor.draft.dataType !== "字符型(String)";
-      }
-      if (field === "defaultValue") updateModelSimpleDefaultMeta(target, editor.draft);
       editor.dirty = true;
-      if (field === "defaultValue") clearModelDefaultOwnerError("parameter-dialog");
-      else if (editor.errors) delete editor.errors[field];
+      if (editor.errors) delete editor.errors[field];
     }
     return true;
   }
@@ -2991,7 +3045,7 @@ function syncModelDraftInput(target) {
     if (target.dataset.field === "elementType" && parameter.dataSpec.elementType !== target.value) {
       if (editor.changeConfirm?.kind === "elementType" && editor.changeConfirm.value === target.value) return true;
       const currentElementType = parameter.dataSpec.elementType;
-      if (modelSpecHasConfiguration(currentElementType, parameter.dataSpec.elementSpec) || parameter.hasDefaultValue) {
+      if (modelSpecHasConfiguration(currentElementType, parameter.dataSpec.elementSpec)) {
         editor.changeConfirm = { kind: "elementType", value: target.value };
       } else {
         applyArrayElementTypeChange(editor, target.value);
@@ -3072,18 +3126,11 @@ function syncModelDraftInput(target) {
       parameter.dataType = target.value;
       parameter.dataSpec = defaultModelDataSpec(target.value);
       syncDefinition(parameter);
-      parameter.defaultValue = "";
-      parameter.hasDefaultValue = false;
       state.modal.typeResetNotice = true;
     } else if (field === "required") {
       parameter.required = target.value === "true";
-      if (parameter.required) {
-        parameter.defaultValue = "";
-        parameter.hasDefaultValue = false;
-      }
     } else {
       parameter[field] = target.value;
-      if (field === "defaultValue") parameter.hasDefaultValue = true;
     }
     markDirty();
     return true;
@@ -3286,7 +3333,7 @@ function handleModalConfirm() {
     const id = `f${Date.now()}`;
     const createdAt = new Date().toLocaleString("zh-CN", { hour12: false });
     const version = functionVersion(id, 1, "草稿", 0, { createdAt, changelog });
-    const item = { id, capabilityId: `capability-${Date.now()}`, name, identifier, productLine, category, remark, image: state.functionDraftImage, createdAt, versions: [version] };
+    const item = { id, capabilityId: `capability-${Date.now()}`, name, identifier, productLine, category, remark, requiredInFirmware: Boolean(modal.requiredInFirmware), image: state.functionDraftImage, createdAt, versions: [version] };
     functions.unshift(item);
     state.modelSpecs[`${id}:${version.id}`] = { properties: [], services: [], events: [], hardware: [], savedAt: "" };
     state.selectedProductLine = productLine;
@@ -3312,7 +3359,7 @@ function handleModalConfirm() {
       changelog,
       copiedFrom: { functionId: sourceItem.id, functionName: sourceItem.name, versionId: sourceVersion.id, versionLabel: sourceVersion.label, productLine: sourceItem.productLine },
     });
-    const copy = { ...sourceItem, id, productLine: targetLine, createdAt, versions: [version], capabilityId: functionCapabilityId(sourceItem) };
+    const copy = { ...sourceItem, id, productLine: targetLine, requiredInFirmware: false, createdAt, versions: [version], capabilityId: functionCapabilityId(sourceItem) };
     functions.unshift(copy);
     const sourceSpec = JSON.parse(JSON.stringify(getModelSpec(sourceItem.id, sourceVersion.id)));
     state.modelSpecs[`${id}:${version.id}`] = { ...sourceSpec, hardware: [], savedAt: "" };
@@ -3324,16 +3371,23 @@ function handleModalConfirm() {
     return showToast(`${copy.name} 已复制到 ${targetLine}，可按需关联硬件`);
   }
   if (modal.type === "function-form") {
+    const existing = modal.id ? functions.find((item) => item.id === modal.id) : null;
+    if (!existing) return showToast("该功能已不存在", "error", false);
+    const nextRequired = Boolean(modal.requiredInFirmware);
+    if (!canEditFunctionMetadata(existing)) {
+      const policyChanged = existing.requiredInFirmware !== nextRequired;
+      existing.requiredInFirmware = nextRequired;
+      state.functionDraftImage = "";
+      state.modal = null;
+      return showToast(policyChanged ? (nextRequired ? "已设为固件必配能力" : "已调整为可选能力") : "功能配置未发生变化");
+    }
     const name = inputValue("modal-function-name");
     if (!name) return showToast("请填写功能项名称", "error", false);
     const category = inputValue("modal-function-category");
     const remark = inputValue("modal-function-desc");
-    const existing = modal.id ? functions.find((item) => item.id === modal.id) : null;
-    if (!existing) return showToast("该功能已不存在", "error", false);
-    if (!canEditFunctionMetadata(existing)) return showToast("功能首次发布后基础资料不可修改", "error", false);
     if (!category) return showToast("请选择功能分类", "error", false);
     if (!remark) return showToast("请填写功能说明", "error", false);
-    Object.assign(existing, { name, category, remark, image: state.functionDraftImage || existing.image });
+    Object.assign(existing, { name, category, remark, requiredInFirmware: nextRequired, image: state.functionDraftImage || existing.image });
     state.functionDraftImage = "";
     state.modal = null;
     return showToast("功能信息已更新");
@@ -3371,9 +3425,15 @@ function handleModalConfirm() {
     version.status = "已发布";
     version.publishedAt = publishedAt;
     version.publishedSnapshot = publishedSnapshot;
+    if (modal.recommendOnPublish) {
+      item.versions.forEach((entry) => { entry.recommended = false; });
+      version.recommended = true;
+    } else {
+      version.recommended = false;
+    }
     state.modelSpecs[`${item.id}:${version.id}`] = { ...deepClone(publishedSnapshot.config), savedAt: publishedAt };
     state.modal = null;
-    return showToast(`${version.label} 已发布，可供同产品线的固件发布配置选择`);
+    return showToast(`${version.label} 已发布${version.recommended ? "并设为推荐版本" : "，可供同产品线的固件发布配置选择"}`);
   }
   if (modal.type === "function-create-version") {
     const item = functions.find((entry) => entry.id === modal.id);
@@ -3404,8 +3464,27 @@ function handleModalConfirm() {
         : modal.nextStatus === "已发布" && version?.status === "已停用";
     if (!allowed) return showToast("当前版本状态不支持该操作", "error", false);
     version.status = modal.nextStatus;
+    if (modal.nextStatus === "已停用" && version.recommended) {
+      version.recommended = false;
+      const replacementId = inputValue("modal-replacement-recommend");
+      const replacement = item.versions.find((entry) => entry.id === replacementId && entry.status === "已发布");
+      if (replacement) {
+        item.versions.forEach((entry) => { entry.recommended = entry.id === replacement.id; });
+      }
+    }
+    if (modal.nextStatus !== "已发布") version.recommended = false;
     state.modal = null;
     return showToast(`版本状态已变更为${modal.nextStatus}`);
+  }
+  if (modal.type === "function-recommend-version") {
+    const item = functions.find((entry) => entry.id === modal.id);
+    const version = item?.versions.find((entry) => entry.id === modal.versionId);
+    if (!item || !version) return showToast("版本已不存在", "error", false);
+    if (modal.nextRecommended && version.status !== "已发布") return showToast("只有已发布版本可以设为推荐", "error", false);
+    if (modal.nextRecommended) item.versions.forEach((entry) => { entry.recommended = entry.id === version.id; });
+    else version.recommended = false;
+    state.modal = null;
+    return showToast(modal.nextRecommended ? `${version.label} 已设为推荐版本` : `${version.label} 已取消推荐`);
   }
   if (modal.type === "function-delete-confirm") {
     const index = functions.findIndex((item) => item.id === modal.id);
@@ -3597,6 +3676,8 @@ function handleModalConfirm() {
     const machine = machines.find((item) => item.id === modal.id) || machines[0];
     const config = activeMachineConfig(modal.id);
     if (!config.hardware.length || config.hardware.some((item) => !item.model)) return showToast("请先完成所有硬件类目的型号配置", "error", false);
+    const requiredGaps = requiredFunctionBindingGaps(modal.id);
+    if (requiredGaps.length) return showToast(`请先为必配能力选择版本：${requiredGaps.map((item) => item.name).join("、")}`, "error", false);
     config.savedAt = config.savedAt || new Date().toLocaleString("zh-CN", { hour12: false });
     if (machine) machine.status = "已发布";
     state.modal = null;
@@ -3629,10 +3710,22 @@ function handleModalConfirm() {
     if (!item || !version || version.status !== "已发布") return showToast("该功能版本已不可引用，请重新选择", "error", false);
     if (item.productLine !== machine.line) return showToast("功能与机型所属产品线不一致", "error", false);
     if (state.configFunctions.some((binding) => (typeof binding === "string" ? binding : binding.functionId) === functionId)) return showToast("该功能已配置，请先移除原版本", "error", false);
-    state.configFunctions.push({ functionId, versionId });
+    state.configFunctions.push({ functionId, versionId, source: "manual" });
     state.configSavedAt = "";
     state.modal = null;
     return showToast("功能版本已添加到机型");
+  }
+  if (modal.type === "config-function-version") {
+    const item = functions.find((entry) => entry.id === modal.functionId);
+    const versionId = inputValue("modal-config-function-version");
+    const version = item?.versions.find((entry) => entry.id === versionId);
+    if (!item || !version || version.status !== "已发布") return showToast("请选择可用的已发布版本", "error", false);
+    const binding = state.configFunctions.find((entry) => (typeof entry === "string" ? entry : entry.functionId) === item.id);
+    if (!binding || typeof binding === "string") return showToast("该功能配置已不存在", "error", false);
+    binding.versionId = version.id;
+    state.configSavedAt = "";
+    state.modal = null;
+    return showToast(`${item.name} 已选择 ${version.label}`);
   }
   if (modal.type === "config-parameter") {
     const key = inputValue("modal-config-param-key");
@@ -3710,7 +3803,7 @@ document.addEventListener("click", (event) => {
   }
   else if (action === "function-add") {
     state.functionDraftImage = "";
-    state.modal = { type: "function-create-entry", targetLine: productLines.includes(state.selectedProductLine) ? state.selectedProductLine : productLines[0] };
+    state.modal = { type: "function-create-entry", targetLine: productLines.includes(state.selectedProductLine) ? state.selectedProductLine : productLines[0], requiredInFirmware: false };
   }
   else if (action === "function-global-detail") state.modal = { type: "function-global-detail", capabilityId: target.dataset.capability };
   else if (action === "function-copy-crossline") {
@@ -3731,9 +3824,13 @@ document.addEventListener("click", (event) => {
   else if (action === "function-version-view") { state.functionVersionSelection[target.dataset.id] = target.dataset.version; state.modelTab = "model"; state.modelKindTab = "all"; return navigate(`/function/detail/${target.dataset.id}`); }
   else if (action === "function-edit") {
     const item = functions.find((entry) => entry.id === (target.dataset.id || state.modal?.id));
-    if (!item || !canEditFunctionMetadata(item)) return showToast("功能首次发布后基础资料不可修改", "error");
+    if (!item) return showToast("该功能已不存在", "error");
     state.functionDraftImage = "";
-    state.modal = { type: "function-form", id: item.id };
+    state.modal = { type: "function-form", id: item.id, requiredInFirmware: Boolean(item.requiredInFirmware) };
+  }
+  else if (action === "function-policy-toggle") {
+    if (!["function-create-entry", "function-form"].includes(state.modal?.type)) return;
+    state.modal.requiredInFirmware = !state.modal.requiredInFirmware;
   }
   else if (action === "function-edit-version") state.modal = { type: "function-version-info", id: target.dataset.id, versionId: target.dataset.version };
   else if (action === "function-submit-test") {
@@ -3743,7 +3840,20 @@ document.addEventListener("click", (event) => {
     state.modal = { type: "function-submit-test", id: item.id };
   }
   else if (action === "function-withdraw-test") state.modal = { type: "function-version-status", id: target.dataset.id, nextStatus: "草稿" };
-  else if (action === "function-publish-version") state.modal = { type: "function-publish-version", id: target.dataset.id };
+  else if (action === "function-publish-version") {
+    const item = functions.find((entry) => entry.id === target.dataset.id);
+    state.modal = { type: "function-publish-version", id: target.dataset.id, recommendOnPublish: Boolean(item?.requiredInFirmware && !recommendedFunctionVersion(item)) };
+  }
+  else if (action === "function-publish-recommend-toggle") {
+    if (state.modal?.type !== "function-publish-version") return;
+    state.modal.recommendOnPublish = !state.modal.recommendOnPublish;
+  }
+  else if (action === "function-recommend-version") {
+    const item = functions.find((entry) => entry.id === target.dataset.id);
+    const version = item?.versions.find((entry) => entry.id === target.dataset.version) || selectedFunctionVersion(item);
+    if (!item || !version || version.status !== "已发布") return showToast("只有已发布版本可以调整推荐标识", "error");
+    state.modal = { type: "function-recommend-version", id: item.id, versionId: version.id, nextRecommended: target.dataset.value === "true" };
+  }
   else if (action === "function-create-version") {
     const item = functions.find((entry) => entry.id === target.dataset.id);
     state.modal = { type: "function-create-version", id: target.dataset.id, versionId: target.dataset.version || latestPublishedVersion(item)?.id };
@@ -3898,14 +4008,14 @@ document.addEventListener("click", (event) => {
     return;
   }
   else if (action === "model-default-disable-cancel") {
-    const host = state.modal?.paramEditor?.defaultDisableConfirm ? state.modal.paramEditor : state.modal;
+    const host = state.modal;
     if (host) host.defaultDisableConfirm = null;
     render();
     return;
   }
   else if (action === "model-default-disable-confirm") {
-    const host = state.modal?.paramEditor?.defaultDisableConfirm ? state.modal.paramEditor : state.modal;
-    const ownerScope = host?.defaultDisableConfirm || (host === state.modal?.paramEditor ? "parameter-dialog" : "property");
+    const host = state.modal;
+    const ownerScope = host?.defaultDisableConfirm || "property";
     const owner = modelDefaultOwner(ownerScope);
     if (!host || !owner) return;
     owner.defaultValue = "";
@@ -3997,18 +4107,18 @@ document.addEventListener("click", (event) => {
     return;
   }
   else if (action === "model-param-add") {
-    const allowDefaultValue = target.dataset.allowDefault === "true";
-    state.modal.paramEditor = { direction: target.dataset.param, allowDefaultValue, draft: createModelParameterDraft(null, allowDefaultValue), dirty: false, errors: {} };
+    const supportsRequired = target.dataset.supportsRequired === "true";
+    state.modal.paramEditor = { direction: target.dataset.param, supportsRequired, draft: createModelParameterDraft(null, supportsRequired), dirty: false, errors: {} };
     render();
     return;
   }
   else if (action === "model-param-edit") {
     const direction = target.dataset.param;
     const index = Number(target.dataset.index);
-    const allowDefaultValue = target.dataset.allowDefault === "true";
+    const supportsRequired = target.dataset.supportsRequired === "true";
     const row = state.modal.draft[direction]?.[index];
     if (!row) return;
-    state.modal.paramEditor = { direction, index, allowDefaultValue, draft: createModelParameterDraft(row, allowDefaultValue), dirty: false, errors: {} };
+    state.modal.paramEditor = { direction, index, supportsRequired, draft: createModelParameterDraft(row, supportsRequired), dirty: false, errors: {} };
     render();
     return;
   }
@@ -4018,27 +4128,8 @@ document.addEventListener("click", (event) => {
     if (!editor) return;
     const nextRequired = target.dataset.value === "必填";
     if (nextRequired === editor.draft.required) return;
-    if (nextRequired && editor.draft.hasDefaultValue) {
-      editor.requiredConfirm = true;
-      render();
-      return;
-    }
     editor.draft.required = nextRequired;
     editor.dirty = true;
-    if (editor.errors) delete editor.errors.defaultValue;
-    render();
-    return;
-  }
-  else if (action === "model-param-required-cancel") { state.modal.paramEditor.requiredConfirm = false; render(); return; }
-  else if (action === "model-param-required-confirm") {
-    const editor = state.modal.paramEditor;
-    editor.draft.required = true;
-    editor.draft.defaultValue = "";
-    editor.draft.hasDefaultValue = false;
-    editor.draft._defaultValuePending = false;
-    editor.requiredConfirm = false;
-    editor.dirty = true;
-    if (editor.errors) delete editor.errors.defaultValue;
     render();
     return;
   }
@@ -4076,8 +4167,7 @@ document.addEventListener("click", (event) => {
   else if (action === "model-param-save") {
     const editor = state.modal.paramEditor;
     if (!editor) return;
-    const value = normalizeModelParameterList([editor.draft], editor.allowDefaultValue)[0];
-    value._defaultValuePending = Boolean(editor.draft._defaultValuePending);
+    const value = normalizeModelParameterList([editor.draft], editor.supportsRequired)[0];
     const errors = modelParameterEditorErrors(editor, value);
     if (Object.keys(errors).length) {
       editor.errors = errors;
@@ -4085,7 +4175,6 @@ document.addEventListener("click", (event) => {
       document.querySelector('.model-param-dialog [aria-invalid="true"], .model-param-dialog .has-error input, .model-param-dialog .has-error select')?.focus();
       return;
     }
-    delete value._defaultValuePending;
     const collection = state.modal.draft[editor.direction];
     if (Number.isInteger(editor.index)) collection.splice(editor.index, 1, value);
     else collection.push(value);
@@ -4288,10 +4377,17 @@ document.addEventListener("click", (event) => {
     return showToast(row?.model ? "硬件型号已配置" : "硬件型号已取消");
   }
   else if (action === "config-function-add") state.modal = { type: "config-function" };
+  else if (action === "config-function-version") state.modal = { type: "config-function-version", functionId: target.dataset.function };
   else if (action === "config-param-add") state.modal = { type: "config-parameter" };
   else if (action === "config-test-add") state.modal = { type: "config-test" };
   else if (action === "config-row-delete") {
     const map = { hardware: "configHardware", function: "configFunctions", parameter: "configParameters", test: "configTests" };
+    if (target.dataset.kind === "function") {
+      const binding = state.configFunctions[Number(target.dataset.index)];
+      const functionId = typeof binding === "string" ? binding : binding?.functionId;
+      const item = functions.find((entry) => entry.id === functionId);
+      if (item?.requiredInFirmware) return showToast("必配能力不能删除，请选择可用版本", "error");
+    }
     state[map[target.dataset.kind]].splice(Number(target.dataset.index), 1);
     state.configSavedAt = "";
     return showToast("配置项已删除");
