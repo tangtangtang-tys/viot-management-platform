@@ -4485,5 +4485,5 @@ window.addEventListener("hashchange", () => {
 restorePersistentState();
 normalizeFunctionData();
 persistState();
-if (!location.hash) location.hash = "/machine";
+if (!location.hash) location.hash = "/function";
 else render();
