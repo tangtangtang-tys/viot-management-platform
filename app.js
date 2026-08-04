@@ -643,6 +643,36 @@ function functionCapabilityId(item) {
   return item?.capabilityId || `capability:${item?.identifier || item?.id || "unknown"}`;
 }
 
+function availableTargetLines(source) {
+  if (!source) return [];
+  const capabilityId = functionCapabilityId(source);
+  const occupied = new Set(functions
+    .filter((item) => functionCapabilityId(item) === capabilityId || item.identifier === source.identifier)
+    .map((item) => item.productLine));
+  return productLines.filter((line) => !occupied.has(line));
+}
+
+function copySourceVersions(item) {
+  return [...(item?.versions || [])].sort((a, b) => (b.number || 0) - (a.number || 0) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
+function defaultCopySourceVersion(item) {
+  return copySourceVersions(item)[0] || null;
+}
+
+function copySourceModelSpec(item, version) {
+  const snapshot = ["已发布", "已停用"].includes(version?.status) ? activeVersionSnapshot(version) : null;
+  return deepClone(snapshot?.config || getModelSpec(item.id, version.id));
+}
+
+function functionCopyButton(item, version, label = "复制", className = "btn btn-text") {
+  const source = version || defaultCopySourceVersion(item);
+  const hasTarget = availableTargetLines(item).length > 0;
+  const enabled = Boolean(source && hasTarget);
+  const title = !source ? "暂无可复制版本" : hasTarget ? `复制 ${source.label} 到其他产线` : "该功能已覆盖全部产线";
+  return `<button class="${className}" data-action="function-copy-crossline" data-id="${item.id}" data-version="${source?.id || ""}" title="${escapeHtml(title)}" ${enabled ? "" : "disabled"}>${label}</button>`;
+}
+
 function functionMatchesFilters(item) {
   if (state.functionCategory !== "全部" && item.category !== state.functionCategory) return false;
   if (state.functionStatus !== "全部" && functionDisplayStatus(item) !== state.functionStatus) return false;
@@ -682,6 +712,10 @@ function functionCollectionView(rows, showProductLine = false) {
   return `<div class="data-table-wrap"><table class="data-table function-table ${showProductLine ? "all-lines" : ""}"><thead><tr><th>功能项</th>${showProductLine ? "<th>所属产线</th>" : ""}<th>最新发布</th><th>当前工作版本</th><th>关联固件</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${rows.map((item) => functionRow(item, showProductLine)).join("")}</tbody></table></div>`;
 }
 
+function functionListCopyAction(item) {
+  return functionCopyButton(item, defaultCopySourceVersion(item));
+}
+
 function functionManagementCard(item, showProductLine = false) {
   const published = latestPublishedVersion(item);
   const working = item.versions.find((version) => ["草稿", "测试中"].includes(version.status));
@@ -693,7 +727,7 @@ function functionManagementCard(item, showProductLine = false) {
     <p>${escapeHtml(item.remark || "-")}</p>
     <div class="function-card-classification">${showProductLine ? `<span class="function-line-chip">${escapeHtml(item.productLine)}</span>` : ""}<span class="function-category-chip">${escapeHtml(item.category)}</span></div>
     <dl class="function-card-metrics"><div><dt>最新发布</dt><dd>${published?.label || "-"}</dd></div><div><dt>工作版本</dt><dd>${working?.label || "-"}</dd></div><div><dt>关联固件</dt><dd>${firmwareCount}</dd></div></dl>
-    <div class="function-management-card-foot"><span>更新于 ${escapeHtml(updatedAt)}</span><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">查看</button></div>
+    <div class="function-management-card-foot"><span>更新于 ${escapeHtml(updatedAt)}</span><div><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">查看</button>${functionListCopyAction(item)}</div></div>
   </article>`;
 }
 
@@ -702,7 +736,7 @@ function functionRow(item, showProductLine = false) {
   const working = item.versions.find((version) => ["草稿", "测试中"].includes(version.status));
   const primary = working || published || item.versions[0];
   const firmwareCount = item.versions.reduce((sum, version) => sum + functionFirmwareRelations(version).length, 0);
-  return `<tr><td><button class="function-name-cell" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}${item.requiredInFirmware ? `<em class="function-policy-tag required">必配</em>` : ""}</strong><code>${escapeHtml(item.identifier)}</code><small>${escapeHtml(item.category)}</small></span></button></td>${showProductLine ? `<td><span class="function-line-chip">${escapeHtml(item.productLine)}</span></td>` : ""}<td>${published ? `${published.label}${published.recommended ? ` <span class="version-signal recommended">推荐</span>` : ""}` : "-"}</td><td>${working ? `${working.label} ${functionStatusTag(working.status)}` : "-"}</td><td>${firmwareCount}</td><td>${escapeHtml(primary.publishedAt || primary.createdAt || item.createdAt)}</td><td><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">查看</button></td></tr>`;
+  return `<tr><td><button class="function-name-cell" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}${item.requiredInFirmware ? `<em class="function-policy-tag required">必配</em>` : ""}</strong><code>${escapeHtml(item.identifier)}</code><small>${escapeHtml(item.category)}</small></span></button></td>${showProductLine ? `<td><span class="function-line-chip">${escapeHtml(item.productLine)}</span></td>` : ""}<td>${published ? `${published.label}${published.recommended ? ` <span class="version-signal recommended">推荐</span>` : ""}` : "-"}</td><td>${working ? `${working.label} ${functionStatusTag(working.status)}` : "-"}</td><td>${firmwareCount}</td><td>${escapeHtml(primary.publishedAt || primary.createdAt || item.createdAt)}</td><td><div class="function-row-actions"><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">查看</button>${functionListCopyAction(item)}</div></td></tr>`;
 }
 
 function latestPublishedVersion(item) {
@@ -752,6 +786,15 @@ function functionVersionBindingCount(versionId) {
   return Object.values(state.machineConfigs).reduce((count, config) => count + (config.functions || []).filter((binding) => (typeof binding === "string" ? "" : binding.versionId) === versionId).length, 0);
 }
 
+function functionDraftDeleteReason(item) {
+  if (!item || item.versions.length !== 1 || item.versions[0].status !== "草稿") return "仅支持删除未发布的单版本草稿功能";
+  const version = item.versions[0];
+  const bindingCount = functionVersionBindingCount(version.id);
+  const relationCount = functionFirmwareRelations(version).length;
+  if (bindingCount || relationCount) return `已有 ${bindingCount + relationCount} 项固件配置关系，请先解除关联`;
+  return "";
+}
+
 function selectedFunctionVersion(item) {
   const selectedId = state.functionVersionSelection[item.id];
   return item.versions.find((version) => version.id === selectedId) || item.versions[0];
@@ -779,7 +822,7 @@ function functionVersionRoleClass(role) {
 function functionVersionSourceLabel(item, version) {
   if (version?.copiedFrom) {
     const source = version.copiedFrom;
-    return `复制自 ${source.productLine || "其他产品线"} · ${source.functionName || item.name} ${source.versionLabel || ""}`.trim();
+    return `复制自 ${source.productLine || "其他产线"} · ${source.functionName || item.name} ${source.versionLabel || ""}${source.versionStatus ? `（${source.versionStatus}）` : ""}`.trim();
   }
   if (version?.baseVersionId) {
     const base = item.versions.find((entry) => entry.id === version.baseVersionId);
@@ -855,7 +898,13 @@ function functionStatusTag(status) {
 function functionHeadingActions(item) {
   const version = workspaceFunctionVersion(item);
   if (!version) return "";
-  if (version.status === "草稿") return `<button class="btn btn-primary" data-action="function-submit-test" data-id="${item.id}">提交测试</button>`;
+  if (version.status === "草稿") {
+    const deleteReason = functionDraftDeleteReason(item);
+    const deleteAction = item.versions.length === 1
+      ? `<button class="btn btn-text danger-text" data-action="function-delete" data-id="${item.id}" title="${escapeHtml(deleteReason || "删除该草稿功能")}" ${deleteReason ? "disabled" : ""}>删除功能</button>`
+      : "";
+    return `${deleteAction}<button class="btn btn-primary" data-action="function-submit-test" data-id="${item.id}">提交测试</button>`;
+  }
   if (version.status === "测试中") {
     const withdrawAction = `<button class="btn" data-action="function-withdraw-test" data-id="${item.id}" title="撤回后版本将恢复为可编辑草稿">撤回草稿</button>`;
     return `${withdrawAction}<button class="btn btn-primary" data-action="function-publish-version" data-id="${item.id}">发布 ${version.label}</button>`;
@@ -1557,7 +1606,7 @@ function modelDefinition(row) {
 
 function modelDefaultSummary(row) {
   if (row.kind === "property") {
-    if (row.access !== "读写") return "不适用";
+    if (row.access !== "读写") return "-";
     if (!row.hasDefaultValue) return "未设置";
     if (["数组型(array)", "结构体(struct)"].includes(row.dataType)) return modelDefaultStatus(row);
     const spec = parseModelDataSpec(row.dataType, "", row.dataSpec);
@@ -1572,7 +1621,7 @@ function modelDefaultSummary(row) {
     const text = String(row.defaultValue);
     return text.length > 18 ? `${text.slice(0, 18)}...` : text;
   }
-  return "不适用";
+  return "-";
 }
 
 function modelSpecPage(functionId) {
@@ -1586,6 +1635,7 @@ function modelSpecPage(functionId) {
   const editable = version.status === "草稿";
   const role = functionVersionRole(item, version);
   const sourceLabel = functionVersionSourceLabel(item, version);
+  const copyAction = functionCopyButton(item, version, "复制到其他产线", "btn");
   const metadataEditable = canEditFunctionMetadata(item);
   const detailTabs = [
     ["model", "物模型", modelRows.length],
@@ -1593,7 +1643,7 @@ function modelSpecPage(functionId) {
     ["firmware", "固件关联", functionFirmwareRelations(version).length],
   ];
   return `<section class="surface model-page">
-    <div class="detail-banner model-banner function-detail-banner"><img class="banner-icon" src="${item.image}" alt=""><div class="banner-copy"><h2>${escapeHtml(item.name)}</h2><div class="banner-meta"><span><em>产品线</em><strong>${escapeHtml(item.productLine)}</strong></span><span><em>功能分类</em><strong>${escapeHtml(item.category)}</strong></span><span><em>功能标识</em><strong><code>${escapeHtml(item.identifier)}</code></strong></span><span><em>固件配置</em><strong><span class="function-policy-display ${item.requiredInFirmware ? "required" : "optional"}"><i aria-hidden="true"></i>${item.requiredInFirmware ? "必配能力" : "可选能力"}</span></strong></span><span class="banner-meta-description"><em>功能说明</em><strong>${escapeHtml(item.remark || "-")}</strong></span></div></div><div class="banner-actions"><button class="btn" data-action="function-edit" data-id="${item.id}" title="${metadataEditable ? "编辑功能资料与固件配置" : "基础资料已锁定，可调整固件配置"}">编辑功能</button></div></div>
+    <div class="detail-banner model-banner function-detail-banner"><img class="banner-icon" src="${item.image}" alt=""><div class="banner-copy"><h2>${escapeHtml(item.name)}</h2><div class="banner-meta"><span><em>产品线</em><strong>${escapeHtml(item.productLine)}</strong></span><span><em>功能分类</em><strong>${escapeHtml(item.category)}</strong></span><span><em>功能标识</em><strong><code>${escapeHtml(item.identifier)}</code></strong></span><span><em>固件配置</em><strong><span class="function-policy-display ${item.requiredInFirmware ? "required" : "optional"}"><i aria-hidden="true"></i>${item.requiredInFirmware ? "必配能力" : "可选能力"}</span></strong></span><span class="banner-meta-description"><em>功能说明</em><strong>${escapeHtml(item.remark || "-")}</strong></span></div></div><div class="banner-actions"><button class="btn" data-action="function-edit" data-id="${item.id}" title="${metadataEditable ? "编辑功能资料与固件配置" : "基础资料已锁定，可调整固件配置"}">编辑功能</button>${copyAction}</div></div>
     <div class="function-version-layout">
       ${functionVersionRail(item, version)}
       <div class="version-detail-panel" role="tabpanel" aria-label="${escapeHtml(version.label)} 版本配置">
@@ -2351,6 +2401,20 @@ function renderModal() {
     wide = true;
     body = functionBasicFormFields(null, modal.targetLine, true);
     footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">创建 V1 并进入配置</button>`;
+  } else if (modal.type === "function-cross-line-copy") {
+    const item = functions.find((entry) => entry.id === modal.id);
+    const versions = copySourceVersions(item);
+    const version = versions.find((entry) => entry.id === modal.versionId) || versions[0];
+    const targets = item ? availableTargetLines(item) : [];
+    const targetLine = targets.includes(modal.targetLine) ? modal.targetLine : "";
+    const spec = item && version ? copySourceModelSpec(item, version) : { properties: [], services: [], events: [] };
+    const sourceVersionField = versions.length > 1
+      ? `<div class="form-row required"><label>来源版本</label><select data-role="modal-copy-source-version">${versions.map((entry) => `<option value="${escapeHtml(entry.id)}" ${entry.id === version?.id ? "selected" : ""}>${escapeHtml(entry.label)} · ${escapeHtml(entry.status)}${entry.recommended ? " · 推荐" : ""}</option>`).join("")}</select></div>`
+      : `<div class="form-row"><label>来源版本</label><div class="form-static-value"><strong>${escapeHtml(version?.label || "-")} · ${escapeHtml(version?.status || "-")}</strong></div></div>`;
+    title = "复制到其他产线";
+    wide = true;
+    body = item && version && targets.length ? `<div class="copy-source-summary"><span>来源功能</span><strong>${escapeHtml(item.productLine)} · ${escapeHtml(item.name)}</strong><small>${escapeHtml(item.identifier)} · 复制后与来源独立管理，不自动同步后续变更</small></div><div class="modal-form">${sourceVersionField}${selectField("目标产线", "modal-copy-target-line", targets, targetLine, true)}<div class="form-row"><label>目标版本</label><div class="form-static-value"><strong>V1 · 草稿</strong><span>版本说明将自动记录复制来源</span></div></div><div class="form-row"><label>复制内容</label><div class="copy-content-list"><span>功能资料</span><span>物模型 ${spec.properties.length + spec.services.length + spec.events.length} 项</span><span>属性默认值</span></div></div><div class="form-row"><label>重新配置</label><div class="copy-content-list"><span class="muted">固件必配默认为可选</span><span class="muted">不复制关联硬件</span><span class="muted">不复制固件关联与版本标记</span></div></div></div>` : `<div class="empty-state compact-empty">暂无可复制的目标产线</div>`;
+    footer = item && version && targets.length ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm" ${targetLine ? "" : "disabled"}>确认复制</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "function-form") {
     const item = modal.id ? functions.find((entry) => entry.id === modal.id) : null;
     title = "编辑功能";
@@ -2431,9 +2495,10 @@ function renderModal() {
     footer = item && version ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">确认</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "function-delete-confirm") {
     const item = functions.find((entry) => entry.id === modal.id);
-    title = "删除功能";
-    body = `<div class="confirm-copy">确定删除功能“${escapeHtml(item?.name || "") }”吗？该操作会删除功能资料及全部版本配置，且无法恢复。</div>`;
-    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-danger" data-action="modal-confirm">删除</button>`;
+    const deleteReason = functionDraftDeleteReason(item);
+    title = "删除草稿功能";
+    body = item && !deleteReason ? `<div class="confirm-copy">确定删除功能“${escapeHtml(item.name)}”吗？草稿功能及其物模型配置将被删除，且无法恢复。</div>` : `<div class="warning-strip"><strong>当前功能不能删除</strong><span>${escapeHtml(deleteReason || "功能已不存在")}</span></div>`;
+    footer = item && !deleteReason ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-danger" data-action="modal-confirm">确认删除</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "model-form") {
     const kindLabel = modelKindLabel(modal.draft?.kind || modal.originalKind || "property");
     title = modal.readOnly ? `查看${kindLabel}` : Number.isInteger(modal.index) ? `编辑${kindLabel}` : `添加${kindLabel}`;
@@ -3273,6 +3338,33 @@ function handleModalConfirm() {
     navigate(`/function/detail/${id}`);
     return showToast("V1 草稿已创建，可按需配置物模型和关联硬件");
   }
+  if (modal.type === "function-cross-line-copy") {
+    const sourceItem = functions.find((item) => item.id === modal.id);
+    const sourceVersionId = inputValue("modal-copy-source-version") || modal.versionId;
+    const sourceVersion = sourceItem?.versions.find((version) => version.id === sourceVersionId) || (sourceVersionId ? null : defaultCopySourceVersion(sourceItem));
+    const targetLine = inputValue("modal-copy-target-line") || modal.targetLine;
+    if (!sourceItem || !sourceVersion) return showToast("复制来源版本已不存在", "error", false);
+    if (!productLines.includes(targetLine)) return showToast("请选择目标产线", "error", false);
+    if (!availableTargetLines(sourceItem).includes(targetLine)) return showToast("目标产线已存在相同功能", "error", false);
+    const id = `f${Date.now()}`;
+    const createdAt = new Date().toLocaleString("zh-CN", { hour12: false });
+    const changelog = `复制自 ${sourceItem.productLine} / ${sourceItem.name} / ${sourceVersion.label}（${sourceVersion.status}）`;
+    const version = functionVersion(id, 1, "草稿", 0, {
+      createdAt,
+      changelog,
+      copiedFrom: { functionId: sourceItem.id, functionName: sourceItem.name, versionId: sourceVersion.id, versionLabel: sourceVersion.label, versionStatus: sourceVersion.status, productLine: sourceItem.productLine, copiedAt: createdAt },
+    });
+    const copy = { ...sourceItem, id, productLine: targetLine, requiredInFirmware: false, createdAt, versions: [version], capabilityId: functionCapabilityId(sourceItem) };
+    functions.unshift(copy);
+    const sourceSpec = copySourceModelSpec(sourceItem, sourceVersion);
+    state.modelSpecs[`${id}:${version.id}`] = { ...sourceSpec, hardware: [], savedAt: "" };
+    state.selectedProductLine = targetLine;
+    state.functionVersionSelection[id] = version.id;
+    state.modelTab = "model";
+    state.modal = null;
+    navigate(`/function/detail/${id}`);
+    return showToast(`${copy.name} 已复制到 ${targetLine}，V1 草稿已创建`);
+  }
   if (modal.type === "function-form") {
     const existing = modal.id ? functions.find((item) => item.id === modal.id) : null;
     if (!existing) return showToast("该功能已不存在", "error", false);
@@ -3390,6 +3482,9 @@ function handleModalConfirm() {
     return showToast(modal.nextRecommended ? `${version.label} 已设为推荐版本` : `${version.label} 已取消推荐`);
   }
   if (modal.type === "function-delete-confirm") {
+    const item = functions.find((entry) => entry.id === modal.id);
+    const deleteReason = functionDraftDeleteReason(item);
+    if (!item || deleteReason) return showToast(deleteReason || "功能已不存在", "error", false);
     const index = functions.findIndex((item) => item.id === modal.id);
     if (index >= 0) functions.splice(index, 1);
     Object.keys(state.modelSpecs).filter((key) => key.startsWith(`${modal.id}:`)).forEach((key) => delete state.modelSpecs[key]);
@@ -3712,6 +3807,13 @@ document.addEventListener("click", (event) => {
     state.functionDraftImage = "";
     state.modal = { type: "function-create-entry", targetLine: state.selectedProductLine, requiredInFirmware: false };
   }
+  else if (action === "function-copy-crossline") {
+    const item = functions.find((entry) => entry.id === target.dataset.id);
+    const sourceVersion = item?.versions.find((version) => version.id === target.dataset.version) || defaultCopySourceVersion(item);
+    if (!item || !sourceVersion) return showToast("暂无可复制版本", "error");
+    if (!availableTargetLines(item).length) return showToast("该功能已覆盖全部产线", "error");
+    state.modal = { type: "function-cross-line-copy", id: item.id, versionId: sourceVersion.id, targetLine: "" };
+  }
   else if (action === "function-model" || action === "function-detail") { const item = functions.find((entry) => entry.id === target.dataset.id); if (item) state.functionVersionSelection[item.id] = workspaceFunctionVersion(item)?.id; state.modelTab = "model"; state.modelKindTab = "all"; state.functionReferencePage = 1; return navigate(`/function/detail/${target.dataset.id}`); }
   else if (action === "function-version-select") {
     const item = functions.find((entry) => entry.id === target.dataset.id);
@@ -3760,7 +3862,12 @@ document.addEventListener("click", (event) => {
   }
   else if (action === "function-disable-version") state.modal = { type: "function-version-status", id: target.dataset.id, versionId: target.dataset.version, nextStatus: "已停用" };
   else if (action === "function-restore-version") state.modal = { type: "function-version-status", id: target.dataset.id, versionId: target.dataset.version, nextStatus: "已发布" };
-  else if (action === "function-delete") state.modal = { type: "function-delete-confirm", id: target.dataset.id };
+  else if (action === "function-delete") {
+    const item = functions.find((entry) => entry.id === target.dataset.id);
+    const deleteReason = functionDraftDeleteReason(item);
+    if (!item || deleteReason) return showToast(deleteReason || "功能已不存在", "error");
+    state.modal = { type: "function-delete-confirm", id: item.id };
+  }
   else if (action === "function-search") { state.functionSearch = inputValue("function-search"); state.functionPage = 1; }
   else if (action === "function-open-references" || action === "function-review-relations") {
     state.modal = null;
@@ -4439,8 +4546,10 @@ document.addEventListener("change", (event) => {
     const fieldMap = { "category-name": "name", "category-code": "code", "category-description": "description" };
     const field = fieldMap[event.target.dataset.role];
     if (field) state.categoryDraft[field] = event.target.value;
-  } else if (event.target.matches('[data-role="modal-copy-target-line"]')) {
-    if (state.modal.changelogEdited) state.modal.changelog = inputValue("modal-copy-version-changelog");
+  } else if (event.target.matches('[data-role="modal-copy-source-version"]') && state.modal?.type === "function-cross-line-copy") {
+    state.modal.versionId = event.target.value;
+    render();
+  } else if (event.target.matches('[data-role="modal-copy-target-line"]') && state.modal?.type === "function-cross-line-copy") {
     state.modal.targetLine = event.target.value;
     render();
   } else if (event.target.matches('[data-role="machine-line"]')) {

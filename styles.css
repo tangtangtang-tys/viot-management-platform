@@ -950,6 +950,12 @@ textarea:focus-visible {
   display: flex;
 }
 
+.function-row-actions {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
 .danger-text {
   color: #dc5555;
 }
@@ -1138,7 +1144,7 @@ textarea:focus-visible {
 }
 
 .function-table th:last-child {
-  width: 80px;
+  width: 120px;
 }
 
 .global-function-table {
