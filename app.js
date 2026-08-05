@@ -1685,20 +1685,20 @@ function modelPropertyRows(rows, editable) {
     const defaultState = modelDefaultSummary(row);
     const defaultTone = row.access !== "读写" ? "disabled" : row.hasDefaultValue ? "configured" : "empty";
     const actions = editable
-      ? `<button class="btn btn-text" data-action="model-edit" data-kind="property" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="property" data-index="${row.index}">删除</button>`
-      : `<button class="btn btn-text" data-action="model-view" data-kind="property" data-index="${row.index}">查看</button>`;
+      ? `<div class="model-row-actions"><button class="btn btn-text" data-action="model-view" data-kind="property" data-index="${row.index}">查看</button><button class="btn btn-text" data-action="model-edit" data-kind="property" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="property" data-index="${row.index}">删除</button></div>`
+      : `<div class="model-row-actions"><button class="btn btn-text" data-action="model-view" data-kind="property" data-index="${row.index}">查看</button></div>`;
     return `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td>${escapeHtml(modelDataTypeShortLabel(row.dataType))}</td><td><span class="model-definition-copy">${escapeHtml(row.dataDefinition || "-")}</span></td><td><div class="model-default-cell"><span class="model-default-state ${defaultTone}">${escapeHtml(defaultState)}</span></div></td><td>${escapeHtml(row.access || "-")}</td><td>${escapeHtml(row.description || "-")}</td><td>${actions}</td></tr>`;
   }).join("");
 }
 
 function modelServiceRows(rows, editable) {
   if (!rows.length) return `<tr><td colspan="7"><div class="empty-state">暂未添加服务</div></td></tr>`;
-  return rows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td>${escapeHtml(row.callType || "-")}</td><td>${modelParameterListSummary(row.inputParams)}</td><td>${modelParameterListSummary(row.outputParams)}</td><td>${escapeHtml(row.description || "-")}</td><td>${editable ? `<button class="btn btn-text" data-action="model-edit" data-kind="service" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="service" data-index="${row.index}">删除</button>` : `<button class="btn btn-text" data-action="model-view" data-kind="service" data-index="${row.index}">查看</button>`}</td></tr>`).join("");
+  return rows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td>${escapeHtml(row.callType || "-")}</td><td>${modelParameterListSummary(row.inputParams)}</td><td>${modelParameterListSummary(row.outputParams)}</td><td>${escapeHtml(row.description || "-")}</td><td><div class="model-row-actions"><button class="btn btn-text" data-action="model-view" data-kind="service" data-index="${row.index}">查看</button>${editable ? `<button class="btn btn-text" data-action="model-edit" data-kind="service" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="service" data-index="${row.index}">删除</button>` : ""}</div></td></tr>`).join("");
 }
 
 function modelEventRows(rows, editable) {
   if (!rows.length) return `<tr><td colspan="5"><div class="empty-state">暂未添加事件</div></td></tr>`;
-  return rows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td>${modelParameterListSummary(row.outputParams)}</td><td>${escapeHtml(row.description || "-")}</td><td>${editable ? `<button class="btn btn-text" data-action="model-edit" data-kind="event" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="event" data-index="${row.index}">删除</button>` : `<button class="btn btn-text" data-action="model-view" data-kind="event" data-index="${row.index}">查看</button>`}</td></tr>`).join("");
+  return rows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td>${modelParameterListSummary(row.outputParams)}</td><td>${escapeHtml(row.description || "-")}</td><td><div class="model-row-actions"><button class="btn btn-text" data-action="model-view" data-kind="event" data-index="${row.index}">查看</button>${editable ? `<button class="btn btn-text" data-action="model-edit" data-kind="event" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="event" data-index="${row.index}">删除</button>` : ""}</div></td></tr>`).join("");
 }
 
 function modelAllRows(rows, editable) {
@@ -1713,8 +1713,8 @@ function modelAllRows(rows, editable) {
         : `<span>输出 ${row.outputParams?.length || 0} 项</span>${modelParameterListSummary(row.outputParams)}`;
     const rule = row.kind === "property" ? row.access || "-" : row.kind === "service" ? row.callType || "同步" : "设备上报";
     const actions = editable
-      ? `<button class="btn btn-text" data-action="model-edit" data-kind="${row.kind}" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="${row.kind}" data-index="${row.index}">删除</button>`
-      : `<button class="btn btn-text" data-action="model-view" data-kind="${row.kind}" data-index="${row.index}">查看</button>`;
+      ? `<div class="model-row-actions"><button class="btn btn-text" data-action="model-view" data-kind="${row.kind}" data-index="${row.index}">查看</button><button class="btn btn-text" data-action="model-edit" data-kind="${row.kind}" data-index="${row.index}">编辑</button><button class="btn btn-text danger-text" data-action="model-delete" data-kind="${row.kind}" data-index="${row.index}">删除</button></div>`
+      : `<div class="model-row-actions"><button class="btn btn-text" data-action="model-view" data-kind="${row.kind}" data-index="${row.index}">查看</button></div>`;
     return `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td><code>${escapeHtml(row.identifier)}</code></td><td><span class="model-kind-badge ${row.kind}">${modelKindLabel(row.kind)}</span></td><td><div class="model-all-definition ${row.kind}">${definition}</div></td><td><div class="model-default-cell"><span class="model-default-state ${defaultTone}">${escapeHtml(defaultState)}</span></div></td><td>${escapeHtml(rule)}</td><td>${escapeHtml(row.description || "-")}</td><td>${actions}</td></tr>`;
   }).join("");
 }
@@ -2327,6 +2327,125 @@ function modelFormBody(modal) {
   return `${stateNote}${modal.typeResetNotice ? `<div class="warning-strip model-reset-warning">数据类型已切换，原数据定义和默认值已重置；取消本次编辑可放弃该变更。</div>` : ""}<fieldset class="model-form-fieldset" ${modal.readOnly ? "disabled" : ""}><div class="modal-form model-drawer-form">${sections}</div></fieldset>${modal.readOnly ? "" : modelParameterDialog(modal)}${defaultDisableConfirm}${accessDefaultConfirm}${typeChangeConfirm}`;
 }
 
+function modelDetailMetaItem(label, value, className = "") {
+  return `<div class="model-detail-meta-item ${className}"><span>${escapeHtml(label)}</span><strong>${value}</strong></div>`;
+}
+
+function modelDetailSection(id, title, content) {
+  return `<section class="model-detail-section" id="${id}"><h3>${escapeHtml(title)}</h3>${content}</section>`;
+}
+
+function modelDetailRuleCell(owner) {
+  const dataType = owner?.dataType || "字符型(String)";
+  const spec = parseModelDataSpec(dataType, owner?.dataDefinition || "", owner?.dataSpec);
+  const definition = modelDataSpecToDefinition(dataType, spec) || owner?.dataDefinition || "-";
+  let structured = "";
+  if (dataType === "枚举型(Enum)") {
+    structured = `<div class="model-detail-enum-values">${spec.enumItems.length ? spec.enumItems.map((item) => `<span><code>${escapeHtml(item.value || "-")}</code>${escapeHtml(item.label || "-")}</span>`).join("") : `<span>-</span>`}</div>`;
+  } else if (dataType === "结构体(struct)") {
+    structured = `<div class="model-detail-struct-rules">${spec.fields.length ? spec.fields.map((field) => `<div><span><strong>${escapeHtml(field.name || "-")}</strong><code>${escapeHtml(field.identifier || "-")}</code></span><span>${escapeHtml(modelDataTypeShortLabel(field.dataType))}</span><small>${escapeHtml(modelDataSpecToDefinition(field.dataType, field.dataSpec) || "-")}</small></div>`).join("") : `<div class="model-detail-empty-inline">暂无字段</div>`}</div>`;
+  }
+  return `<div class="model-detail-rule-cell"><span>${escapeHtml(definition)}</span>${structured}</div>`;
+}
+
+function modelDetailDataDefinition(owner) {
+  const dataType = owner.dataType;
+  const spec = parseModelDataSpec(dataType, owner.dataDefinition || "", owner.dataSpec);
+  if (["整数型(Int)", "浮点型(float)"].includes(dataType)) {
+    return `<div class="model-detail-definition-grid">${modelDetailMetaItem("最小值", escapeHtml(spec.min || "-"))}${modelDetailMetaItem("最大值", escapeHtml(spec.max || "-"))}${modelDetailMetaItem("步长", escapeHtml(spec.step || "-"))}${modelDetailMetaItem("单位", escapeHtml(spec.unit || "-"))}</div>`;
+  }
+  if (dataType === "枚举型(Enum)") {
+    return `<div class="data-table-wrap"><table class="mini-table model-detail-table"><thead><tr><th>枚举值</th><th>枚举说明</th></tr></thead><tbody>${spec.enumItems.length ? spec.enumItems.map((item) => `<tr><td><code>${escapeHtml(item.value || "-")}</code></td><td>${escapeHtml(item.label || "-")}</td></tr>`).join("") : `<tr><td colspan="2"><div class="model-detail-empty-inline">暂无枚举值</div></td></tr>`}</tbody></table></div>`;
+  }
+  if (dataType === "布尔型(Bool)") {
+    return `<div class="data-table-wrap"><table class="mini-table model-detail-table"><thead><tr><th>布尔值</th><th>业务含义</th></tr></thead><tbody><tr><td><code>0</code></td><td>${escapeHtml(spec.falseLabel || "-")}</td></tr><tr><td><code>1</code></td><td>${escapeHtml(spec.trueLabel || "-")}</td></tr></tbody></table></div>`;
+  }
+  if (dataType === "字符型(String)") {
+    return `<div class="model-detail-definition-grid single">${modelDetailMetaItem("最大长度", `${escapeHtml(spec.maxLength || "-")} 个字符`)}</div>`;
+  }
+  if (dataType === "时间型(timestamp)") {
+    return `<div class="model-detail-definition-grid single">${modelDetailMetaItem("时间格式", `Unix UTC 时间戳 · ${escapeHtml(spec.timestampUnit || "-")}`)}</div>`;
+  }
+  if (dataType === "数组型(array)") {
+    const elementOwner = { dataType: spec.elementType, dataSpec: spec.elementSpec };
+    return `<div class="model-detail-definition-grid">${modelDetailMetaItem("元素类型", escapeHtml(modelDataTypeShortLabel(spec.elementType)))}${modelDetailMetaItem("元素数量上限", escapeHtml(spec.maxItems || "-"))}</div><div class="model-detail-subsection"><h4>元素规则</h4>${modelDetailRuleCell(elementOwner)}</div>`;
+  }
+  return `<div class="data-table-wrap"><table class="mini-table model-detail-table model-detail-struct-table"><thead><tr><th>字段名称</th><th>标识符</th><th>数据类型</th><th>数据规则</th></tr></thead><tbody>${spec.fields.length ? spec.fields.map((field) => `<tr><td><strong>${escapeHtml(field.name || "-")}</strong></td><td><code>${escapeHtml(field.identifier || "-")}</code></td><td>${escapeHtml(modelDataTypeShortLabel(field.dataType))}</td><td>${modelDetailRuleCell(field)}</td></tr>`).join("") : `<tr><td colspan="4"><div class="model-detail-empty-inline">暂无结构体字段</div></td></tr>`}</tbody></table></div>`;
+}
+
+function modelDetailScalarValue(dataType, value, dataSpecValue) {
+  const spec = parseModelDataSpec(dataType, "", dataSpecValue);
+  if (value === null || value === undefined) return "-";
+  if (dataType === "枚举型(Enum)") {
+    const matched = spec.enumItems.find((item) => String(item.value) === String(value));
+    return matched ? `${escapeHtml(matched.label)}（${escapeHtml(matched.value)}）` : escapeHtml(String(value));
+  }
+  if (dataType === "布尔型(Bool)") {
+    const normalized = String(value) === "1" ? "1" : "0";
+    return `${escapeHtml(normalized === "1" ? spec.trueLabel : spec.falseLabel)}（${normalized}）`;
+  }
+  if (dataType === "时间型(timestamp)") {
+    const local = modelTimestampLocalValue(value, spec.timestampUnit).replace("T", " ");
+    return `${local ? `${escapeHtml(local)} · ` : ""}${escapeHtml(String(value))} ${escapeHtml(spec.timestampUnit)}`;
+  }
+  if (dataType === "字符型(String)" && value === "") return "空字符串";
+  return escapeHtml(String(value));
+}
+
+function modelDetailDefaultValue(owner) {
+  if (owner.access !== "读写") return `<div class="model-detail-empty-inline">-</div>`;
+  if (!owner.hasDefaultValue) return `<div class="model-detail-empty-inline"><span class="model-detail-default-status off">未配置</span></div>`;
+  if (owner.dataType === "数组型(array)") {
+    const parsed = parsedArrayDefaultValue(owner.defaultValue);
+    if (parsed.invalid) return `<div class="model-detail-empty-inline error-copy">默认值格式异常</div>`;
+    return `<div class="model-detail-default-head"><span class="model-detail-default-status">已配置 ${parsed.items.length} 项</span></div><div class="data-table-wrap"><table class="mini-table model-detail-table"><thead><tr><th>序号</th><th>默认值</th></tr></thead><tbody>${parsed.items.length ? parsed.items.map((item, index) => `<tr><td>${index + 1}</td><td>${modelDetailScalarValue(owner.dataSpec.elementType, item, owner.dataSpec.elementSpec)}</td></tr>`).join("") : `<tr><td colspan="2"><div class="model-detail-empty-inline">空数组</div></td></tr>`}</tbody></table></div>`;
+  }
+  if (owner.dataType === "结构体(struct)") {
+    const parsed = parsedStructDefaultValue(owner.defaultValue);
+    if (parsed.invalid) return `<div class="model-detail-empty-inline error-copy">默认值格式异常</div>`;
+    return `<div class="model-detail-default-head"><span class="model-detail-default-status">已配置 ${Object.keys(parsed.value).length} 个字段</span></div><div class="data-table-wrap"><table class="mini-table model-detail-table model-detail-struct-default-table"><thead><tr><th>字段</th><th>标识符</th><th>类型</th><th>默认值</th></tr></thead><tbody>${owner.dataSpec.fields.length ? owner.dataSpec.fields.map((field) => { const included = Object.hasOwn(parsed.value, field.identifier); return `<tr><td><strong>${escapeHtml(field.name || "-")}</strong></td><td><code>${escapeHtml(field.identifier || "-")}</code></td><td>${escapeHtml(modelDataTypeShortLabel(field.dataType))}</td><td>${included ? modelDetailScalarValue(field.dataType, parsed.value[field.identifier], field.dataSpec) : "-"}</td></tr>`; }).join("") : `<tr><td colspan="4"><div class="model-detail-empty-inline">暂无结构体字段</div></td></tr>`}</tbody></table></div>`;
+  }
+  return `<div class="model-detail-simple-value"><span class="model-detail-default-status">已配置</span><strong>${modelDetailScalarValue(owner.dataType, owner.defaultValue, owner.dataSpec)}</strong></div>`;
+}
+
+function modelDetailParameterTable(title, parameters, supportsRequired = false) {
+  const columns = supportsRequired ? 5 : 4;
+  return `<div class="model-detail-parameter-head"><h3>${escapeHtml(title)}</h3><span>${parameters.length} 项</span></div><div class="data-table-wrap"><table class="mini-table model-detail-table model-detail-parameter-table"><thead><tr><th>参数名称</th><th>标识符</th><th>数据类型</th><th>数据规则</th>${supportsRequired ? "<th>必填性</th>" : ""}</tr></thead><tbody>${parameters.length ? parameters.map((parameter) => `<tr><td><strong>${escapeHtml(parameter.name || "-")}</strong></td><td><code>${escapeHtml(parameter.identifier || "-")}</code></td><td>${escapeHtml(modelDataTypeShortLabel(parameter.dataType))}</td><td>${modelDetailRuleCell(parameter)}</td>${supportsRequired ? `<td><span class="model-detail-required ${parameter.required ? "required" : "optional"}">${parameter.required ? "必填" : "可选"}</span></td>` : ""}</tr>`).join("") : `<tr><td colspan="${columns}"><div class="model-detail-empty-inline">暂无${escapeHtml(title)}</div></td></tr>`}</tbody></table></div>`;
+}
+
+function modelDetailBody(modal, item, version) {
+  const draft = modal.draft;
+  const kindLabel = modelKindLabel(draft.kind);
+  const kindClass = draft.kind;
+  const summary = draft.kind === "property"
+    ? `${modelDetailMetaItem("数据类型", escapeHtml(modelDataTypeShortLabel(draft.dataType)))}${modelDetailMetaItem("访问权限", escapeHtml(draft.access || "-"))}${modelDetailMetaItem("默认值", escapeHtml(draft.access === "读写" ? modelDefaultStatus(draft) : "-"), draft.hasDefaultValue ? "highlight" : "")}`
+    : draft.kind === "service"
+      ? `${modelDetailMetaItem("调用方式", escapeHtml(draft.callType || "-"))}${modelDetailMetaItem("输入参数", `${draft.inputParams.length} 项`)}${modelDetailMetaItem("输出参数", `${draft.outputParams.length} 项`)}`
+      : `${modelDetailMetaItem("上报方式", "设备主动上报")}${modelDetailMetaItem("输出参数", `${draft.outputParams.length} 项`)}`;
+  const nav = draft.kind === "property"
+    ? [["model-detail-definition", "数据定义"], ["model-detail-default", "默认值"], ["model-detail-remark", "备注"]]
+    : draft.kind === "service"
+      ? [["model-detail-input", "输入参数"], ["model-detail-output", "输出参数"], ["model-detail-remark", "备注"]]
+      : [["model-detail-output", "输出参数"], ["model-detail-remark", "备注"]];
+  let content = "";
+  if (draft.kind === "property") {
+    content += modelDetailSection("model-detail-definition", "数据定义", modelDetailDataDefinition(draft));
+    content += modelDetailSection("model-detail-default", "默认值", modelDetailDefaultValue(draft));
+  } else if (draft.kind === "service") {
+    content += `<section class="model-detail-section" id="model-detail-input">${modelDetailParameterTable("输入参数", draft.inputParams, true)}</section>`;
+    content += `<section class="model-detail-section" id="model-detail-output">${modelDetailParameterTable("输出参数", draft.outputParams)}</section>`;
+  } else {
+    content += `<section class="model-detail-section" id="model-detail-output">${modelDetailParameterTable("输出参数", draft.outputParams)}</section>`;
+  }
+  content += modelDetailSection("model-detail-remark", "备注", `<p class="model-detail-remark">${escapeHtml(draft.description || "-")}</p>`);
+  return `<div class="model-detail-view"><div class="model-detail-hero"><div class="model-detail-identity"><div class="model-detail-title-line"><h2>${escapeHtml(draft.name || "未命名物模型")}</h2><span class="model-detail-kind ${kindClass}">${kindLabel}</span>${version ? functionStatusTag(version.status) : ""}</div><div class="model-detail-identifier"><code>${escapeHtml(draft.identifier || "-")}</code><button type="button" class="btn btn-text" data-action="model-detail-copy-identifier" title="复制标识符">复制</button></div><small>${escapeHtml(item?.name || "功能项")} · ${escapeHtml(version?.label || "-")}</small></div><button type="button" class="btn" data-action="model-detail-json" title="查看当前功能版本的完整物模型 JSON">查看 JSON</button></div><div class="model-detail-summary">${summary}</div><nav class="model-detail-nav" aria-label="详情内容定位">${nav.map(([id, label]) => `<button type="button" data-action="model-detail-jump" data-target="${id}">${label}</button>`).join("")}</nav><div class="model-detail-content">${content}</div></div>`;
+}
+
+function createModelDetailModal(kind, index) {
+  const row = modelCollection(getModelSpec(route().split("/")[3]), kind)[index];
+  return row ? { type: "model-form", originalKind: kind, index, readOnly: true, draft: createModelDraft(kind, row) } : null;
+}
+
 function testRowsTable(rows, readOnly = true) {
   return `<div class="data-table-wrap"><table class="mini-table test-table"><thead><tr>${testColumns.slice(0, readOnly ? -1 : undefined).map((title) => `<th>${title}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.map((row, index) => testDraftRow(row, index, readOnly)).join("") : `<tr><td colspan="${readOnly ? testColumns.length - 1 : testColumns.length}"><div class="empty-state">暂无数据</div></td></tr>`}</tbody></table></div>`;
 }
@@ -2352,6 +2471,7 @@ function renderModal() {
   let wide = false;
   let drawer = false;
   let modelDrawer = false;
+  let modelDetailDrawer = false;
 
   if (modal.type === "machine-form") {
     const machine = modal.id ? machines.find((m) => m.id === modal.id) : null;
@@ -2501,12 +2621,16 @@ function renderModal() {
     footer = item && !deleteReason ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-danger" data-action="modal-confirm">确认删除</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "model-form") {
     const kindLabel = modelKindLabel(modal.draft?.kind || modal.originalKind || "property");
-    title = modal.readOnly ? `查看${kindLabel}` : Number.isInteger(modal.index) ? `编辑${kindLabel}` : `添加${kindLabel}`;
-    body = modelFormBody(modal);
+    const functionId = route().split("/")[3];
+    const item = functions.find((entry) => entry.id === functionId);
+    const version = item ? selectedFunctionVersion(item) : null;
+    title = modal.readOnly ? "物模型详情" : Number.isInteger(modal.index) ? `编辑${kindLabel}` : `添加${kindLabel}`;
+    body = modal.readOnly ? modelDetailBody(modal, item, version) : modelFormBody(modal);
     drawer = true;
     modelDrawer = true;
+    modelDetailDrawer = Boolean(modal.readOnly);
     footer = modal.readOnly
-      ? `<button class="btn btn-primary" data-action="modal-close">关闭</button>`
+      ? `<button class="btn" data-action="modal-close">关闭</button>${version?.status === "草稿" ? `<button class="btn btn-primary" data-action="model-detail-edit">编辑${kindLabel}</button>` : ""}`
       : `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">保存</button>`;
   } else if (modal.type === "model-discard-confirm") {
     title = "放弃未保存修改";
@@ -2625,7 +2749,7 @@ function renderModal() {
   }
 
   const functionDialogClass = ["function-create-entry", "function-form"].includes(modal.type) ? "function-profile-dialog" : "";
-  return `<div class="modal-backdrop ${drawer ? "drawer-backdrop" : ""}" data-action="modal-backdrop"><section class="modal ${wide ? "modal-wide" : ""} ${drawer ? "modal-drawer" : ""} ${modelDrawer ? "model-form-drawer" : ""} ${functionDialogClass}" role="dialog" aria-modal="true" aria-label="${title}"><div class="modal-header"><h2>${title}</h2><button class="modal-close" data-action="modal-close" title="关闭">×</button></div><div class="modal-body">${body}</div>${footer ? `<div class="modal-footer">${footer}</div>` : ""}</section></div>`;
+  return `<div class="modal-backdrop ${drawer ? "drawer-backdrop" : ""}" data-action="modal-backdrop"><section class="modal ${wide ? "modal-wide" : ""} ${drawer ? "modal-drawer" : ""} ${modelDrawer ? "model-form-drawer" : ""} ${modelDetailDrawer ? "model-detail-drawer" : ""} ${functionDialogClass}" role="dialog" aria-modal="true" aria-label="${title}"><div class="modal-header"><h2>${title}</h2><button class="modal-close" data-action="modal-close" title="关闭">×</button></div><div class="modal-body">${body}</div>${footer ? `<div class="modal-footer">${footer}</div>` : ""}</section></div>`;
 }
 
 function pageForRoute(current) {
@@ -3544,10 +3668,18 @@ function handleModalConfirm() {
       return showToast(validationError, "error", false);
     }
     if (draft.kind === "property") delete value._defaultValuePending;
-    if (Number.isInteger(modal.index)) originalRows.splice(modal.index, 1);
-    modelCollection(spec, draft.kind).push(value);
+    const savedRows = modelCollection(spec, draft.kind);
+    let savedIndex;
+    if (Number.isInteger(modal.index) && (modal.originalKind || draft.kind) === draft.kind) {
+      originalRows.splice(modal.index, 1, value);
+      savedIndex = modal.index;
+    } else {
+      if (Number.isInteger(modal.index)) originalRows.splice(modal.index, 1);
+      savedRows.push(value);
+      savedIndex = savedRows.length - 1;
+    }
     spec.savedAt = "";
-    state.modal = null;
+    state.modal = modal.returnDetailModal ? createModelDetailModal(draft.kind, savedIndex) : null;
     return showToast(`物模型已${Number.isInteger(modal.index) ? "更新" : "添加"}`);
   }
   if (modal.type === "model-delete-confirm") {
@@ -3904,8 +4036,30 @@ document.addEventListener("click", (event) => {
   else if (action === "model-view") {
     const kind = target.dataset.kind;
     const index = Number(target.dataset.index);
-    const row = modelCollection(getModelSpec(route().split("/")[3]), kind)[index];
-    if (row) state.modal = { type: "model-form", originalKind: kind, index, readOnly: true, draft: createModelDraft(kind, row) };
+    state.modal = createModelDetailModal(kind, index);
+  }
+  else if (action === "model-detail-edit") {
+    if (!requireDraftFunctionVersion() || state.modal?.type !== "model-form" || !state.modal.readOnly) return;
+    const detailModal = deepClone(state.modal);
+    state.modal = { ...state.modal, readOnly: false, dirty: false, returnDetailModal: detailModal };
+    render();
+    return;
+  }
+  else if (action === "model-detail-jump") {
+    document.getElementById(target.dataset.target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  else if (action === "model-detail-copy-identifier") {
+    const text = state.modal?.draft?.identifier || "";
+    if (!text) return;
+    const onSuccess = () => showToast("标识符已复制", "", false);
+    const onFallback = () => fallbackCopyText(text) ? onSuccess() : showToast("复制失败", "error", false);
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(onSuccess).catch(onFallback);
+    else onFallback();
+    return;
+  }
+  else if (action === "model-detail-json") {
+    state.modal = { type: "model-preview", previewMode: "current", returnModal: deepClone(state.modal) };
   }
   else if (action === "model-kind") { state.modal.draft.kind = target.dataset.kind; state.modal.dirty = true; render(); return; }
   else if (action === "model-access") {
@@ -4301,12 +4455,22 @@ document.addEventListener("click", (event) => {
       render();
       return;
     }
+    if (currentModal?.returnModal) {
+      state.modal = currentModal.returnModal;
+      render();
+      return;
+    }
+    if (currentModal?.returnDetailModal) {
+      state.modal = currentModal.returnDetailModal;
+      render();
+      return;
+    }
     state.modal = currentModal?.returnToDetail ? { type: "asset-detail", assetType: currentModal.assetType, id: currentModal.id } : null;
     state.functionDraftImage = "";
     state.machineDraftImage = "";
   }
   else if (action === "model-discard-return") { state.modal = state.modal.previousModal; render(); return; }
-  else if (action === "model-discard-confirm") { state.modal = null; render(); return; }
+  else if (action === "model-discard-confirm") { state.modal = state.modal.previousModal?.returnDetailModal || null; render(); return; }
   else if (action === "model-import-back") { state.modal = { type: "model-import", raw: state.modal.raw, importMode: state.modal.importMode || "append", fileName: state.modal.fileName || "", fileSize: state.modal.fileSize || 0 }; render(); return; }
   else if (action === "modal-confirm") return handleModalConfirm();
   else if (action === "draft-row-add") {
