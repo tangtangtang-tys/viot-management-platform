@@ -134,6 +134,7 @@ const MODEL_ARRAY_ELEMENT_TYPES = ["整数型(Int)", "布尔型(Bool)", "字符�
 const MODEL_STRUCT_FIELD_TYPES = ["枚举型(Enum)", "整数型(Int)", "布尔型(Bool)", "字符型(String)", "浮点型(float)", "时间型(timestamp)"];
 const MODEL_TIMESTAMP_UNITS = ["毫秒(ms)", "秒(s)"];
 const testColumns = ["测试项", "中文名", "要求值", "等待时间（ms）", "是否需要人工检测", "是否需要写入", "获取测试结果的JSON提取路径", "请求URL", "请求类型", "请求头参数", "请求体", "备注", "操作"];
+const CURRENT_USER_NAME = "汤彦珊";
 
 function functionVersion(id, number, status, refs, options = {}) {
   return {
@@ -143,6 +144,7 @@ function functionVersion(id, number, status, refs, options = {}) {
     status,
     refs,
     createdAt: options.createdAt || "2026-07-18 10:20:05",
+    createdBy: options.createdBy || CURRENT_USER_NAME,
     publishedAt: options.publishedAt || "",
     changelog: options.changelog || "",
     baseVersionId: options.baseVersionId || "",
@@ -329,12 +331,10 @@ const state = {
   functionSearch: "",
   selectedProductLine: "IPC",
   functionCategory: "全部",
-  functionStatus: "全部",
   functionViewMode: "list",
   functionPage: 1,
   functionPageSize: 24,
   functionVersionSelection: {},
-  functionDraftImage: "",
   machineDraftImage: "",
   modelTab: "model",
   modelKindTab: "all",
@@ -392,7 +392,7 @@ function categoryMetaFor(type, index = state.selectedCategory[type]) {
       code: type === "electronic" ? "" : `TYPE_${index + 1}`,
       description: "",
       image: [img.blue, img.goose, img.camera][index % 3],
-      createdAt: new Date().toLocaleString("zh-CN", { hour12: false }),
+      createdAt: currentDateTime(),
       parameters: [],
       tests: [],
       remark: cfg?.categories[index] || "",
@@ -427,6 +427,25 @@ function escapeHtml(value = "") {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function formatDateTime(value = "", fallback = "-") {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return fallback;
+    const pad = (part) => String(part).padStart(2, "0");
+    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
+  }
+  const text = String(value).trim();
+  const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+  if (!match) return text || fallback;
+  const [, year, month, day, hour = "00", minute = "00", second = "00"] = match;
+  const pad = (part) => String(part).padStart(2, "0");
+  return `${year}-${pad(month)}-${pad(day)} ${pad(hour)}:${pad(minute)}:${pad(second)}`;
+}
+
+function currentDateTime() {
+  return formatDateTime(new Date());
 }
 
 function route() {
@@ -508,7 +527,7 @@ function appShell(pageHtml) {
       <div class="brand"><img src="${img.logo}" alt=""><span>运维系统</span></div>
       <div class="topbar-spacer"></div>
       <div class="topbar-system">▱ 系统管理</div>
-      <div class="profile"><img src="${img.avatar}" alt=""><span>汤彦珊</span></div>
+      <div class="profile"><img src="${img.avatar}" alt=""><span>${CURRENT_USER_NAME}</span></div>
     </header>
     <div class="body-grid ${state.sidebarCollapsed ? "sidebar-collapsed" : ""}">
       <aside class="sidebar"><div class="sidebar-title">VIOT管理平台</div>${navTemplate()}</aside>
@@ -620,7 +639,7 @@ function assetPage(type) {
 
 function assetBanner(type, selected, index) {
   const meta = categoryMetaFor(type, index);
-  return `<div class="detail-banner"><img class="banner-icon" src="${meta.image || img.blue}" alt=""><div class="banner-copy"><h2>${escapeHtml(selected)}</h2><div class="banner-meta">${type !== "electronic" ? `<span>编码类目： <strong>${escapeHtml(meta.code || "-")}</strong></span>` : ""}<span>创建时间： <strong>${escapeHtml(meta.createdAt || "-")}</strong></span><span>说明： <strong>${escapeHtml(meta.description || "-")}</strong></span></div></div><div class="banner-actions"><button class="btn" data-action="category-edit" data-type="${type}">✎ 编辑</button>${type !== "pcba" ? `<button class="btn" data-action="template-open" data-type="${type}">▣ 参数模板</button>` : ""}</div></div>`;
+  return `<div class="detail-banner"><img class="banner-icon" src="${meta.image || img.blue}" alt=""><div class="banner-copy"><h2>${escapeHtml(selected)}</h2><div class="banner-meta">${type !== "electronic" ? `<span>编码类目： <strong>${escapeHtml(meta.code || "-")}</strong></span>` : ""}<span>创建时间： <strong>${escapeHtml(formatDateTime(meta.createdAt))}</strong></span><span>说明： <strong>${escapeHtml(meta.description || "-")}</strong></span></div></div><div class="banner-actions"><button class="btn" data-action="category-edit" data-type="${type}">✎ 编辑</button>${type !== "pcba" ? `<button class="btn" data-action="template-open" data-type="${type}">▣ 参数模板</button>` : ""}</div></div>`;
 }
 
 function getAssetRows(type, selectedIndex) {
@@ -675,11 +694,9 @@ function functionCopyButton(item, version, label = "复制", className = "btn bt
 
 function functionMatchesFilters(item) {
   if (state.functionCategory !== "全部" && item.category !== state.functionCategory) return false;
-  if (state.functionStatus !== "全部" && functionDisplayStatus(item) !== state.functionStatus) return false;
   if (!state.functionSearch) return true;
-  const versionNotes = item.versions.map((version) => version.changelog || "").join(" ");
   const query = state.functionSearch.toLowerCase();
-  return `${item.name} ${item.identifier} ${item.remark} ${versionNotes}`.toLowerCase().includes(query);
+  return `${item.name} ${item.category} ${item.remark}`.toLowerCase().includes(query);
 }
 
 function functionPage() {
@@ -691,15 +708,12 @@ function functionPage() {
   if (state.functionPage > pageCount) state.functionPage = pageCount;
   const pageStart = (state.functionPage - 1) * state.functionPageSize;
   const pageRows = collection.slice(pageStart, pageStart + state.functionPageSize);
-  const lineFunctions = isAll ? functions : functions.filter((item) => item.productLine === line);
-  const publishedCount = lineFunctions.filter((item) => item.versions.some((version) => version.status === "已发布")).length;
-  const testingCount = lineFunctions.filter((item) => functionDisplayStatus(item) === "测试中").length;
   const navLines = [GLOBAL_PRODUCT_LINE, ...productLines];
   return `<section class="surface function-layout">
     <div class="function-main">
-      <div class="function-page-head"><div><h2>功能管理</h2><span>${isAll ? "全部产线功能汇总" : `${escapeHtml(line)} 产品线`}</span></div><dl><div><dt>功能项</dt><dd>${lineFunctions.length}</dd></div><div><dt>已发布</dt><dd>${publishedCount}</dd></div><div><dt>测试中</dt><dd>${testingCount}</dd></div></dl></div>
+      <div class="function-page-head"><div><h2>功能管理</h2><span>${isAll ? "全部产线功能汇总" : `${escapeHtml(line)} 产品线`}</span></div></div>
       <nav class="product-line-tabs" aria-label="产品线筛选">${navLines.map((name) => { const count = name === GLOBAL_PRODUCT_LINE ? functions.length : functions.filter((item) => item.productLine === name).length; return `<button class="${name === line ? "active" : ""}" data-action="function-line-select" data-line="${name}"><span>${name}</span><strong>${count}</strong></button>`; }).join("")}</nav>
-      <div class="function-list-toolbar"><div class="function-filter-fields"><div class="searchbox"><input data-role="function-search" value="${escapeHtml(state.functionSearch)}" placeholder="搜索功能名称、标识或版本说明"></div><select data-role="function-category-filter"><option>全部</option>${functionCategories.map((category) => `<option ${category === state.functionCategory ? "selected" : ""}>${category}</option>`).join("")}</select><select data-role="function-status-filter">${["全部", "草稿", "测试中", "已发布", "已停用"].map((status) => `<option ${status === state.functionStatus ? "selected" : ""}>${status}</option>`).join("")}</select></div><div class="function-toolbar-actions"><div class="function-view-switch" role="group" aria-label="功能展示方式"><button class="${state.functionViewMode === "list" ? "active" : ""}" data-action="function-view-mode" data-mode="list" aria-pressed="${state.functionViewMode === "list"}" title="列表视图"><span aria-hidden="true">▤</span>列表</button><button class="${state.functionViewMode === "card" ? "active" : ""}" data-action="function-view-mode" data-mode="card" aria-pressed="${state.functionViewMode === "card"}" title="卡片视图"><span aria-hidden="true">▦</span>卡片</button></div>${isAll ? "" : `<button class="btn btn-primary" data-action="function-add">＋ 新增功能</button>`}</div></div>
+      <div class="function-list-toolbar"><div class="function-filter-fields"><div class="searchbox"><input data-role="function-search" value="${escapeHtml(state.functionSearch)}" placeholder="搜索功能名称或说明"></div><select data-role="function-category-filter"><option value="全部">全部类目</option>${functionCategories.map((category) => `<option ${category === state.functionCategory ? "selected" : ""}>${category}</option>`).join("")}</select></div><div class="function-toolbar-actions"><div class="function-view-switch" role="group" aria-label="功能展示方式"><button class="${state.functionViewMode === "list" ? "active" : ""}" data-action="function-view-mode" data-mode="list" aria-pressed="${state.functionViewMode === "list"}" title="列表视图"><span aria-hidden="true">▤</span>列表</button><button class="${state.functionViewMode === "card" ? "active" : ""}" data-action="function-view-mode" data-mode="card" aria-pressed="${state.functionViewMode === "card"}" title="卡片视图"><span aria-hidden="true">▦</span>卡片</button></div>${isAll ? "" : `<button class="btn btn-primary" data-action="function-add">＋ 新增功能</button>`}</div></div>
       ${functionCollectionView(pageRows, isAll)}
       ${pagination(total, state.functionPage, state.functionPageSize, "function")}
     </div>
@@ -709,7 +723,7 @@ function functionPage() {
 function functionCollectionView(rows, showProductLine = false) {
   if (!rows.length) return `<div class="function-view-empty"><div class="empty-state">暂无符合条件的功能项</div></div>`;
   if (state.functionViewMode === "card") return `<div class="function-card-grid">${rows.map((item) => functionManagementCard(item, showProductLine)).join("")}</div>`;
-  return `<div class="data-table-wrap"><table class="data-table function-table ${showProductLine ? "all-lines" : ""}"><thead><tr><th>功能项</th>${showProductLine ? "<th>所属产线</th>" : ""}<th>最新发布</th><th>当前工作版本</th><th>关联固件</th><th>更新时间</th><th>操作</th></tr></thead><tbody>${rows.map((item) => functionRow(item, showProductLine)).join("")}</tbody></table></div>`;
+  return `<div class="data-table-wrap"><table class="data-table function-table ${showProductLine ? "all-lines" : ""}"><thead><tr><th>功能项</th>${showProductLine ? "<th>所属产线</th>" : ""}<th>更新时间</th><th>操作</th></tr></thead><tbody>${rows.map((item) => functionRow(item, showProductLine)).join("")}</tbody></table></div>`;
 }
 
 function functionListCopyAction(item) {
@@ -717,26 +731,19 @@ function functionListCopyAction(item) {
 }
 
 function functionManagementCard(item, showProductLine = false) {
-  const published = latestPublishedVersion(item);
-  const working = item.versions.find((version) => ["草稿", "测试中"].includes(version.status));
-  const primary = working || published || item.versions[0];
-  const firmwareCount = item.versions.reduce((sum, version) => sum + functionFirmwareRelations(version).length, 0);
-  const updatedAt = primary.publishedAt || primary.createdAt || item.createdAt;
+  const primary = workspaceFunctionVersion(item);
+  const updatedAt = formatDateTime(primary?.publishedAt || primary?.createdAt || item.createdAt);
   return `<article class="function-management-card">
-    <div class="function-management-card-head"><button class="function-card-open" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><code>${escapeHtml(item.identifier)}</code></span></button><div class="function-card-tags">${item.requiredInFirmware ? `<span class="function-policy-tag required">固件必配</span>` : ""}${functionStatusTag(primary.status)}</div></div>
+    <div class="function-management-card-head"><button class="function-card-open" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.category)}</small></span></button></div>
     <p>${escapeHtml(item.remark || "-")}</p>
-    <div class="function-card-classification">${showProductLine ? `<span class="function-line-chip">${escapeHtml(item.productLine)}</span>` : ""}<span class="function-category-chip">${escapeHtml(item.category)}</span></div>
-    <dl class="function-card-metrics"><div><dt>最新发布</dt><dd>${published?.label || "-"}</dd></div><div><dt>工作版本</dt><dd>${working?.label || "-"}</dd></div><div><dt>关联固件</dt><dd>${firmwareCount}</dd></div></dl>
+    ${showProductLine ? `<div class="function-card-classification"><span class="function-line-chip">${escapeHtml(item.productLine)}</span></div>` : ""}
     <div class="function-management-card-foot"><span>更新于 ${escapeHtml(updatedAt)}</span><div><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">查看</button>${functionListCopyAction(item)}</div></div>
   </article>`;
 }
 
 function functionRow(item, showProductLine = false) {
-  const published = latestPublishedVersion(item);
-  const working = item.versions.find((version) => ["草稿", "测试中"].includes(version.status));
-  const primary = working || published || item.versions[0];
-  const firmwareCount = item.versions.reduce((sum, version) => sum + functionFirmwareRelations(version).length, 0);
-  return `<tr><td><button class="function-name-cell" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}${item.requiredInFirmware ? `<em class="function-policy-tag required">必配</em>` : ""}</strong><code>${escapeHtml(item.identifier)}</code><small>${escapeHtml(item.category)}</small></span></button></td>${showProductLine ? `<td><span class="function-line-chip">${escapeHtml(item.productLine)}</span></td>` : ""}<td>${published ? `${published.label}${published.recommended ? ` <span class="version-signal recommended">推荐</span>` : ""}` : "-"}</td><td>${working ? `${working.label} ${functionStatusTag(working.status)}` : "-"}</td><td>${firmwareCount}</td><td>${escapeHtml(primary.publishedAt || primary.createdAt || item.createdAt)}</td><td><div class="function-row-actions"><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">查看</button>${functionListCopyAction(item)}</div></td></tr>`;
+  const primary = workspaceFunctionVersion(item);
+  return `<tr><td><button class="function-name-cell" data-action="function-detail" data-id="${item.id}"><img src="${item.image}" alt=""><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.category)}</small></span></button></td>${showProductLine ? `<td><span class="function-line-chip">${escapeHtml(item.productLine)}</span></td>` : ""}<td>${escapeHtml(formatDateTime(primary?.publishedAt || primary?.createdAt || item.createdAt))}</td><td><div class="function-row-actions"><button class="btn btn-text" data-action="function-detail" data-id="${item.id}">查看</button>${functionListCopyAction(item)}</div></td></tr>`;
 }
 
 function latestPublishedVersion(item) {
@@ -764,11 +771,9 @@ function recommendedFunctionVersion(item) {
   return publishedFunctionVersions(item).find((version) => version.recommended) || null;
 }
 
-function functionVersionSignalTags(version, compact = false) {
-  const relationCount = functionFirmwareRelations(version).length;
+function functionVersionSignalTags(version) {
   const tags = [];
   if (version?.status === "已发布" && version.recommended) tags.push(`<span class="version-signal recommended">推荐</span>`);
-  if (relationCount) tags.push(`<span class="version-signal in-use" title="已关联 ${relationCount} 个固件版本">${compact ? `关联 ${relationCount}` : `关联固件 ${relationCount}`}</span>`);
   return tags.length ? `<span class="version-signal-list">${tags.join("")}</span>` : "";
 }
 
@@ -819,16 +824,9 @@ function functionVersionRoleClass(role) {
   return { "当前工作版本": "working", "最新发布版本": "latest", "最近版本": "recent" }[role] || "";
 }
 
-function functionVersionSourceLabel(item, version) {
-  if (version?.copiedFrom) {
-    const source = version.copiedFrom;
-    return `复制自 ${source.productLine || "其他产线"} · ${source.functionName || item.name} ${source.versionLabel || ""}${source.versionStatus ? `（${source.versionStatus}）` : ""}`.trim();
-  }
-  if (version?.baseVersionId) {
-    const base = item.versions.find((entry) => entry.id === version.baseVersionId);
-    if (base) return `继承自 ${base.label}`;
-  }
-  return version?.number === 1 ? "首个版本" : "独立版本";
+function functionVersionRoleTag(role) {
+  if (["当前工作版本", "历史版本"].includes(role)) return "";
+  return `<span class="version-role ${functionVersionRoleClass(role)}">${escapeHtml(role)}</span>`;
 }
 
 function canEditVersionDescription(version) {
@@ -938,8 +936,8 @@ function functionVersionRail(item, selected) {
     <div class="version-rail-head"><div><span>版本记录</span><strong>${item.versions.length}</strong></div></div>
     <div class="version-rail-list" role="tablist" aria-label="功能版本">${item.versions.map((version) => {
       const role = functionVersionRole(item, version);
-      const time = version.publishedAt || version.createdAt || "-";
-      return `<button class="version-rail-item ${version.id === selected.id ? "active" : ""}" data-action="function-version-select" data-id="${item.id}" data-version="${version.id}" role="tab" aria-selected="${version.id === selected.id}"><span class="version-marker" aria-hidden="true"></span><span class="version-rail-copy"><span class="version-rail-title"><strong>${escapeHtml(version.label)}</strong>${functionStatusTag(version.status)}</span><span class="version-rail-context"><span class="version-role ${functionVersionRoleClass(role)}">${role}</span>${functionVersionSignalTags(version, true)}</span><small>${escapeHtml(time)}</small></span></button>`;
+      const time = formatDateTime(version.publishedAt || version.createdAt);
+      return `<button class="version-rail-item ${version.id === selected.id ? "active" : ""}" data-action="function-version-select" data-id="${item.id}" data-version="${version.id}" role="tab" aria-selected="${version.id === selected.id}"><span class="version-marker" aria-hidden="true"></span><span class="version-rail-copy"><span class="version-rail-title"><strong>${escapeHtml(version.label)}</strong>${functionStatusTag(version.status)}</span><span class="version-rail-context">${functionVersionRoleTag(role)}${functionVersionSignalTags(version)}</span><small>${escapeHtml(time)}</small></span></button>`;
     }).join("")}</div>
   </aside>`;
 }
@@ -1564,7 +1562,7 @@ function functionConfigPayload(spec) {
 }
 
 function createFunctionConfigSnapshot(item, version, spec, prefix = "PUB", options = {}) {
-  const createdAt = options.createdAt || new Date().toLocaleString("zh-CN", { hour12: false });
+  const createdAt = options.createdAt || currentDateTime();
   const config = functionConfigPayload(spec);
   return {
     id: options.id || `${prefix}-${item.id}-${version.label}-${Date.now()}`,
@@ -1634,7 +1632,6 @@ function modelSpecPage(functionId) {
   const modelRows = flattenModelRows(spec);
   const editable = version.status === "草稿";
   const role = functionVersionRole(item, version);
-  const sourceLabel = functionVersionSourceLabel(item, version);
   const copyAction = functionCopyButton(item, version, "复制到其他产线", "btn");
   const metadataEditable = canEditFunctionMetadata(item);
   const detailTabs = [
@@ -1647,7 +1644,7 @@ function modelSpecPage(functionId) {
     <div class="function-version-layout">
       ${functionVersionRail(item, version)}
       <div class="version-detail-panel" role="tabpanel" aria-label="${escapeHtml(version.label)} 版本配置">
-        <div class="version-detail-head"><div class="version-detail-title"><div class="version-title-line"><h3>${escapeHtml(version.label)}</h3><span class="version-role ${functionVersionRoleClass(role)}">${role}</span><div class="version-title-signals">${functionStatusTag(version.status)}${functionVersionSignalTags(version)}</div></div><div class="version-description"><p>${escapeHtml(version.changelog || "暂无版本说明")}</p>${canEditVersionDescription(version) ? `<button class="version-description-edit" data-action="function-edit-version" data-id="${item.id}" data-version="${version.id}" title="编辑版本说明" aria-label="编辑版本说明">✎</button>` : ""}</div><div class="version-detail-meta"><span>${escapeHtml(sourceLabel)}</span><span>创建于 ${escapeHtml(version.createdAt || "-")}</span>${version.publishedAt ? `<span>发布于 ${escapeHtml(version.publishedAt)}</span>` : ""}</div></div><div class="version-detail-actions">${functionSelectedVersionActions(item, version)}</div></div>
+        <div class="version-detail-head"><div class="version-detail-title"><div class="version-title-line"><h3>${escapeHtml(version.label)}</h3>${functionVersionRoleTag(role)}<div class="version-title-signals">${functionStatusTag(version.status)}${functionVersionSignalTags(version)}</div></div><div class="version-description"><p>${escapeHtml(version.changelog || "暂无版本说明")}</p>${canEditVersionDescription(version) ? `<button class="version-description-edit" data-action="function-edit-version" data-id="${item.id}" data-version="${version.id}" title="编辑版本说明" aria-label="编辑版本说明">✎</button>` : ""}</div><div class="version-detail-meta"><span>创建时间 <strong>${escapeHtml(formatDateTime(version.createdAt))}</strong></span><span>创建人 <strong>${escapeHtml(version.createdBy || CURRENT_USER_NAME)}</strong></span></div></div><div class="version-detail-actions">${functionSelectedVersionActions(item, version)}</div></div>
         ${functionLifecycleSummary(item, version)}
         <div class="function-detail-tabs">${detailTabs.map(([id, label, count]) => `<button class="${state.modelTab === id ? "active" : ""}" data-action="model-tab" data-tab="${id}"><span>${label}</span><strong>${count}</strong></button>`).join("")}</div><div class="model-content">${functionDetailTabContent(item, version, spec, modelRows, editable)}</div>
       </div>
@@ -1662,15 +1659,14 @@ function functionDetailTabContent(item, version, spec, rows, editable) {
 }
 
 function functionLifecycleSummary(item, version) {
-  const stepIndex = { "草稿": 0, "测试中": 1, "已发布": 2, "已停用": 2 }[version.status] || 0;
-  const steps = ["草稿", "测试中", version.status === "已停用" ? "已停用" : "已发布"];
   const messages = {
-    "草稿": "版本可编辑，提交测试后锁定配置。",
-    "测试中": "可供固件配置选择进行功能测试；有问题可撤回修改。",
-    "已发布": "功能验证完成，可用于固件正式发布。",
-    "已停用": "已有固件关联保留，新配置不可再选择。",
+    "草稿": "提交测试后配置将锁定，并可供固件功能测试。",
+    "测试中": "可供固件功能测试；发现问题可撤回修改。",
+    "已停用": "该版本已停用，不再供新固件选择。",
   };
-  return `<div class="version-flow-panel"><div class="lifecycle-steps">${steps.map((label, index) => `<div class="lifecycle-step ${index < stepIndex ? "done" : index === stepIndex ? "active" : ""}"><span>${index < stepIndex ? "✓" : index + 1}</span><strong>${label}</strong></div>`).join("")}</div><p>${escapeHtml(messages[version.status] || messages["草稿"])}</p></div>`;
+  if (!messages[version.status]) return "";
+  const tone = version.status === "测试中" ? "testing" : version.status === "已停用" ? "disabled" : "draft";
+  return `<div class="version-stage-note ${tone}"><i aria-hidden="true"></i><span>${escapeHtml(messages[version.status])}</span></div>`;
 }
 
 function modelParameterListSummary(parameters) {
@@ -1735,30 +1731,24 @@ function modelInfoContent(item, version, rows, editable) {
       : `<table class="mini-table model-table model-kind-table event-model-table"><thead><tr><th>事件名称</th><th>标识符</th><th>输出参数</th><th>备注</th><th>操作</th></tr></thead><tbody>${modelEventRows(currentRows, editable)}</tbody></table>`;
   const addKind = ["property", "service", "event"].includes(state.modelKindTab) ? state.modelKindTab : "property";
   const addLabel = state.modelKindTab === "all" ? "新增物模型" : `添加${currentLabel}`;
-  return `<div class="model-tsl-notice" role="note"><span class="model-tsl-notice-icon" aria-hidden="true">i</span><p>物模型是云端对设备功能的抽象描述，涵盖了设备的属性、服务和事件。物联网平台通过物的描述语言，即 TSL（Thing Specification Language），以 JSON 格式表达这一模型。开发者可以利用 TSL 构建并上报设备数据。完整的物模型可用于云端应用的开发，而精简版的物模型则可结合设备端 SDK 用于设备的开发工作。</p><button class="btn btn-text" data-action="model-preview" data-preview-mode="standard">查看JSON格式</button></div><div class="model-section-head model-definition-head"><div><h3>物模型定义 <small class="optional-label">可选</small></h3></div><div><button class="btn" data-action="model-preview">查看 JSON</button>${editable ? `<button class="btn" data-action="model-import">批量导入 JSON</button><button class="btn btn-primary" data-action="model-add" data-kind="${addKind}">＋ ${addLabel}</button>` : ""}</div></div><div class="model-kind-tabs" role="tablist" aria-label="物模型类型筛选">${kinds.map(([kind, label]) => `<button type="button" class="${state.modelKindTab === kind ? "active" : ""}" data-action="model-kind-tab" data-kind="${kind}" role="tab" aria-selected="${state.modelKindTab === kind}"><span>${label}</span><strong>${counts[kind]}</strong></button>`).join("")}</div><div class="data-table-wrap model-kind-table-wrap">${table}</div>`;
+  return `<div class="model-tsl-notice" role="note"><span class="model-tsl-notice-icon" aria-hidden="true">i</span><p>物模型是云端对设备功能的抽象描述，涵盖了设备的属性、服务和事件。物联网平台通过物的描述语言，即 TSL（Thing Specification Language），以 JSON 格式表达这一模型。开发者可以利用 TSL 构建并上报设备数据。完整的物模型可用于云端应用的开发，而精简版的物模型则可结合设备端 SDK 用于设备的开发工作。</p><button class="btn btn-text" data-action="model-preview" data-preview-mode="standard">查看JSON格式</button></div><div class="model-section-head model-definition-head"><div><h3>物模型定义</h3></div>${editable ? `<div><button class="btn" data-action="model-import">批量导入 JSON</button><button class="btn btn-primary" data-action="model-add" data-kind="${addKind}">＋ ${addLabel}</button></div>` : ""}</div><div class="model-kind-tabs" role="tablist" aria-label="物模型类型筛选">${kinds.map(([kind, label]) => `<button type="button" class="${state.modelKindTab === kind ? "active" : ""}" data-action="model-kind-tab" data-kind="${kind}" role="tab" aria-selected="${state.modelKindTab === kind}"><span>${label}</span><strong>${counts[kind]}</strong></button>`).join("")}</div><div class="data-table-wrap model-kind-table-wrap">${table}</div>`;
 }
 
 function relatedHardwareContent(item, version, spec, editable) {
   const baseVersion = version.baseVersionId ? item.versions.find((entry) => entry.id === version.baseVersionId) : null;
   const helper = baseVersion
     ? `已继承 ${baseVersion.label} 的 ${spec.hardware.length} 项配置`
-    : "仅在功能需要特定硬件支持时关联";
+    : "";
   const operationHeader = editable ? "<th>操作</th>" : "";
-  return `<div class="model-section-head"><div><h3>关联硬件 <small class="optional-label">可选</small></h3><p>${escapeHtml(helper)}</p></div>${editable ? `<button class="btn btn-primary" data-action="model-hardware-add">＋ 关联硬件</button>` : ""}</div><div class="data-table-wrap"><table class="mini-table model-table related-hardware-table"><thead><tr><th>硬件名称</th><th>图片</th><th>类型</th><th>生产厂商</th><th>状态</th>${operationHeader}</tr></thead><tbody>${spec.hardware.length ? spec.hardware.map((id, index) => { const row = assetConfigs.hardware.rows.find((item) => item.id === id); return row ? `<tr><td>${escapeHtml(row.name)}</td><td><img class="asset-thumb" src="${row.image}" alt=""></td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.maker)}</td><td><span class="status-tag">${row.status}</span></td>${editable ? `<td><button class="btn btn-text danger-text" data-action="model-hardware-remove" data-index="${index}">移除</button></td>` : ""}</tr>` : ""; }).join("") : `<tr><td colspan="${editable ? 6 : 5}"><div class="empty-state">暂未关联硬件</div></td></tr>`}</tbody></table></div>`;
+  return `<div class="model-section-head"><div><h3>关联硬件</h3>${helper ? `<p>${escapeHtml(helper)}</p>` : ""}</div>${editable ? `<button class="btn btn-primary" data-action="model-hardware-add">＋ 关联硬件</button>` : ""}</div><div class="data-table-wrap"><table class="mini-table model-table related-hardware-table"><thead><tr><th>硬件名称</th><th>图片</th><th>类型</th><th>生产厂商</th><th>状态</th>${operationHeader}</tr></thead><tbody>${spec.hardware.length ? spec.hardware.map((id, index) => { const row = assetConfigs.hardware.rows.find((item) => item.id === id); return row ? `<tr><td>${escapeHtml(row.name)}</td><td><img class="asset-thumb" src="${row.image}" alt=""></td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.maker)}</td><td><span class="status-tag">${row.status}</span></td>${editable ? `<td><button class="btn btn-text danger-text" data-action="model-hardware-remove" data-index="${index}">移除</button></td>` : ""}</tr>` : ""; }).join("") : `<tr><td colspan="${editable ? 6 : 5}"><div class="empty-state">暂未关联硬件</div></td></tr>`}</tbody></table></div>`;
 }
 
 function functionFirmwareRelationsContent(item, version) {
   const relations = functionFirmwareRelations(version);
   const stats = functionFirmwareRelationStats(version);
   if (!relations.length) {
-    const emptyCopy = version.status === "草稿"
-      ? "草稿版本不可被固件配置选择，提交测试后即可用于功能测试。"
-      : version.status === "测试中"
-        ? "当前版本可供固件配置选择，关联后将在此展示。"
-        : version.status === "已发布"
-          ? "当前版本可用于固件正式发布，暂未产生关联记录。"
-          : "当前版本已停用，暂无历史固件关联。";
-    return `<div class="reference-workspace"><div class="model-section-head reference-section-head"><div><h3>固件关联</h3></div></div><div class="reference-empty-state"><strong>暂未关联固件版本</strong><span>${escapeHtml(emptyCopy)}</span></div></div>`;
+    const emptyCopy = version.status === "草稿" ? "提交测试后可被固件配置选择。" : "";
+    return `<div class="reference-workspace"><div class="model-section-head reference-section-head"><div><h3>固件关联</h3></div></div><div class="reference-empty-state"><strong>暂未关联固件版本</strong>${emptyCopy ? `<span>${escapeHtml(emptyCopy)}</span>` : ""}</div></div>`;
   }
   const query = state.functionReferenceSearch.toLowerCase();
   const filteredRelations = relations.filter((relation) => {
@@ -1776,7 +1766,7 @@ function functionFirmwareRelationsContent(item, version) {
   const pageContent = relationPageCount > 1
     ? `<div class="relation-pagination"><span>共 ${filteredRelations.length} 条 · 第 ${state.functionReferencePage}/${relationPageCount} 页</span><div><button data-action="function-relation-page" data-page="${state.functionReferencePage - 1}" title="上一页" aria-label="上一页" ${state.functionReferencePage === 1 ? "disabled" : ""}>‹</button><button data-action="function-relation-page" data-page="${state.functionReferencePage + 1}" title="下一页" aria-label="下一页" ${state.functionReferencePage === relationPageCount ? "disabled" : ""}>›</button></div></div>`
     : "";
-  const firmwareContent = `${searchContent}<div class="data-table-wrap"><table class="mini-table firmware-relation-table"><thead><tr><th>固件版本号</th><th>固件标识</th><th>所属产品线</th><th>所属机型</th><th title="当前固件版本覆盖、可使用此功能的设备数量">覆盖设备数</th><th>关联时间</th></tr></thead><tbody>${relationPageRows.length ? relationPageRows.map((relation) => { const machine = relationMachine(relation, item.productLine); return `<tr><td><strong>${escapeHtml(relation.firmwareVersion)}</strong></td><td><code>${escapeHtml(relation.firmwareIdentifier)}</code></td><td>${escapeHtml(relation.productLine || machine.line || item.productLine)}</td><td><span class="relation-machine-cell"><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.id)}</small></span></td><td><strong class="coverage-device-count">${relation.coveredDeviceCount.toLocaleString("zh-CN")}</strong> 台</td><td>${escapeHtml(relation.linkedAt || "-")}</td></tr>`; }).join("") : `<tr><td colspan="6"><div class="empty-state compact-empty">暂无符合搜索条件的关联记录</div></td></tr>`}</tbody></table></div>${pageContent}`;
+  const firmwareContent = `${searchContent}<div class="data-table-wrap"><table class="mini-table firmware-relation-table"><thead><tr><th>固件版本号</th><th>固件标识</th><th>所属产品线</th><th>所属机型</th><th title="当前固件版本覆盖、可使用此功能的设备数量">覆盖设备数</th><th>关联时间</th></tr></thead><tbody>${relationPageRows.length ? relationPageRows.map((relation) => { const machine = relationMachine(relation, item.productLine); return `<tr><td><strong>${escapeHtml(relation.firmwareVersion)}</strong></td><td><code>${escapeHtml(relation.firmwareIdentifier)}</code></td><td>${escapeHtml(relation.productLine || machine.line || item.productLine)}</td><td><span class="relation-machine-cell"><strong>${escapeHtml(machine.name)}</strong><small>${escapeHtml(machine.id)}</small></span></td><td><strong class="coverage-device-count">${relation.coveredDeviceCount.toLocaleString("zh-CN")}</strong> 台</td><td>${escapeHtml(formatDateTime(relation.linkedAt))}</td></tr>`; }).join("") : `<tr><td colspan="6"><div class="empty-state compact-empty">暂无符合搜索条件的关联记录</div></td></tr>`}</tbody></table></div>${pageContent}`;
   return `<div class="reference-workspace"><div class="model-section-head reference-section-head"><div><h3>固件关联</h3></div><div class="reference-statline"><span>涉及机型 <strong>${stats.machineCount}</strong></span><span>固件标识 <strong>${stats.identifierCount}</strong></span><span>固件版本 <strong>${relations.length}</strong></span></div></div>${firmwareContent}</div>`;
 }
 
@@ -1787,7 +1777,7 @@ function functionVersionsContent(item) {
   const versionAction = working
     ? `<div class="working-version-notice"><span>当前正在推进 <strong>${working.label}</strong> · ${functionStatusTag(working.status)}</span></div>`
     : published ? `<button class="btn btn-primary" data-action="function-create-version" data-id="${item.id}" data-version="${published.id}">＋ 创建新版本</button>` : "";
-  return `<div class="model-section-head version-history-head"><div><h3>版本历史</h3><p>历史版本以只读快照查看，不会改变当前工作区上下文。</p></div>${versionAction}</div><div class="data-table-wrap"><table class="mini-table version-history-table"><thead><tr><th>版本</th><th>版本角色</th><th>状态</th><th>使用标识</th><th>变更说明</th><th>创建时间</th><th>发布时间</th><th>关联固件</th><th>操作</th></tr></thead><tbody>${item.versions.map((version) => { const role = functionVersionRole(item, version); return `<tr class="${version.id === selected.id ? "active-version-row" : ""}"><td><strong>${version.label}</strong></td><td><span class="version-role ${functionVersionRoleClass(role)}">${role}</span></td><td>${functionStatusTag(version.status)}</td><td>${functionVersionSignalTags(version) || "-"}</td><td>${escapeHtml(version.changelog || "-")}</td><td>${escapeHtml(version.createdAt || "-")}</td><td>${escapeHtml(version.publishedAt || "-")}</td><td>${functionFirmwareRelations(version).length}</td><td><button class="btn btn-text" data-action="function-version-snapshot" data-id="${item.id}" data-version="${version.id}">查看快照</button></td></tr>`; }).join("")}</tbody></table></div>`;
+  return `<div class="model-section-head version-history-head"><div><h3>版本历史</h3></div>${versionAction}</div><div class="data-table-wrap"><table class="mini-table version-history-table"><thead><tr><th>版本</th><th>状态</th><th>使用标识</th><th>变更说明</th><th>创建时间</th><th>创建人</th><th>发布时间</th><th>关联固件</th><th>操作</th></tr></thead><tbody>${item.versions.map((version) => `<tr class="${version.id === selected.id ? "active-version-row" : ""}"><td><strong>${version.label}</strong></td><td>${functionStatusTag(version.status)}</td><td>${functionVersionSignalTags(version) || "-"}</td><td>${escapeHtml(version.changelog || "-")}</td><td>${escapeHtml(formatDateTime(version.createdAt))}</td><td>${escapeHtml(version.createdBy || CURRENT_USER_NAME)}</td><td>${escapeHtml(formatDateTime(version.publishedAt))}</td><td>${functionFirmwareRelations(version).length}</td><td><button class="btn btn-text" data-action="function-version-snapshot" data-id="${item.id}" data-version="${version.id}">查看快照</button></td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function functionVersionSnapshotBody(item, version) {
@@ -1801,8 +1791,8 @@ function functionVersionSnapshotBody(item, version) {
     ["事件定义", spec.events.map((entry) => entry.identifier)],
     ["关联硬件", hardwareNames],
   ];
-  return `<div class="version-snapshot-hero"><div><span>${escapeHtml(item.name)}</span><h3>${version.label} ${functionStatusTag(version.status)}${functionVersionSignalTags(version)}</h3></div><span class="version-role ${functionVersionRoleClass(role)}">${role}</span></div>
-    <div class="version-snapshot-meta"><div><span>创建时间</span><strong>${escapeHtml(version.createdAt || "-")}</strong></div><div><span>发布时间</span><strong>${escapeHtml(version.publishedAt || "-")}</strong></div><div><span>关联固件</span><strong>${functionFirmwareRelations(version).length}</strong></div><div><span>配置快照</span><strong>${escapeHtml(snapshot?.id || "实时配置")}</strong></div></div>
+  return `<div class="version-snapshot-hero"><div><span>${escapeHtml(item.name)}</span><h3>${version.label} ${functionStatusTag(version.status)}${functionVersionSignalTags(version)}</h3></div>${functionVersionRoleTag(role)}</div>
+    <div class="version-snapshot-meta"><div><span>创建时间</span><strong>${escapeHtml(formatDateTime(version.createdAt))}</strong><small>${escapeHtml(version.createdBy || CURRENT_USER_NAME)}</small></div><div><span>发布时间</span><strong>${escapeHtml(formatDateTime(version.publishedAt))}</strong></div><div><span>关联固件</span><strong>${functionFirmwareRelations(version).length}</strong></div><div><span>配置快照</span><strong>${escapeHtml(snapshot?.id || "实时配置")}</strong></div></div>
     <section class="version-snapshot-section"><h3>版本说明</h3><p>${escapeHtml(version.changelog || "暂无版本说明")}</p></section>
     <section class="version-snapshot-section"><h3>配置快照</h3><div class="version-snapshot-counts"><div><span>属性</span><strong>${spec.properties.length}</strong></div><div><span>服务</span><strong>${spec.services.length}</strong></div><div><span>事件</span><strong>${spec.events.length}</strong></div><div><span>关联硬件</span><strong>${spec.hardware.length}</strong></div></div><div class="snapshot-config-grid">${configGroups.map(([label, entries]) => `<div class="snapshot-config-group"><div><strong>${label}</strong><span>${entries.length} 项</span></div><div class="snapshot-token-list">${entries.length ? entries.map((entry) => `<code>${escapeHtml(entry)}</code>`).join("") : `<span class="snapshot-empty">暂无配置</span>`}</div></div>`).join("")}</div></section>`;
 }
@@ -1889,23 +1879,87 @@ function functionPolicySwitch(action, checked, label) {
 
 function functionFirmwarePolicyField(requiredInFirmware) {
   const stateLabel = requiredInFirmware ? "必配能力" : "可选能力";
-  return `<div class="form-row function-policy-field"><label>固件必配</label><div class="function-policy-control"><div class="function-policy-switch-line">${functionPolicySwitch("function-policy-toggle", requiredInFirmware, `${requiredInFirmware ? "关闭" : "开启"}固件必配`)}<span class="function-policy-value ${requiredInFirmware ? "required" : "optional"}">${stateLabel}</span></div><small>开启后，固件配置会自动加入此功能，并优先选择推荐版本。</small></div></div>`;
+  return `<div class="form-row function-policy-field"><label>固件必配</label><div class="function-policy-control"><div class="function-policy-switch-line">${functionPolicySwitch("function-policy-toggle", requiredInFirmware, `${requiredInFirmware ? "关闭" : "开启"}固件必配`)}<span class="function-policy-value ${requiredInFirmware ? "required" : "optional"}">${stateLabel}</span></div><small>固件配置时自动加入；有推荐版本则自动选择，否则需手动选择版本。</small></div></div>`;
+}
+
+function createFunctionProfileDraft(item = null, productLine = state.selectedProductLine) {
+  const line = productLines.includes(productLine) ? productLine : productLines[0];
+  return {
+    productLine: item?.productLine || line,
+    name: item?.name || "",
+    identifier: item?.identifier || "",
+    category: item?.category || functionCategories[0],
+    requiredInFirmware: Boolean(item?.requiredInFirmware),
+    remark: item?.remark || "",
+    image: item?.image || "",
+    changelog: "",
+  };
+}
+
+function functionProfileSnapshot(draft = {}) {
+  return ["productLine", "name", "identifier", "category", "requiredInFirmware", "remark", "image", "changelog"]
+    .reduce((snapshot, key) => ({ ...snapshot, [key]: draft[key] ?? "" }), {});
+}
+
+function functionProfileIsDirty(modal = state.modal) {
+  if (!["function-create-entry", "function-form"].includes(modal?.type)) return false;
+  return JSON.stringify(functionProfileSnapshot(modal.draft)) !== JSON.stringify(functionProfileSnapshot(modal.initialDraft));
+}
+
+function clearFunctionProfileError(target) {
+  const row = target?.closest?.(".form-row");
+  row?.classList.remove("is-invalid");
+  target?.removeAttribute?.("aria-invalid");
+}
+
+function syncFunctionProfileDraft(target) {
+  if (!["function-create-entry", "function-form"].includes(state.modal?.type) || !state.modal.draft) return false;
+  const fieldMap = {
+    "modal-function-line": "productLine",
+    "modal-function-name": "name",
+    "modal-function-identifier": "identifier",
+    "modal-function-category": "category",
+    "modal-function-desc": "remark",
+    "modal-initial-version-changelog": "changelog",
+  };
+  const field = fieldMap[target?.dataset?.role];
+  if (!field) return false;
+  state.modal.draft[field] = target.value;
+  clearFunctionProfileError(target);
+  return true;
+}
+
+function rejectFunctionProfileField(roleName, message) {
+  document.querySelectorAll(".function-profile-dialog .form-row.is-invalid").forEach((row) => row.classList.remove("is-invalid"));
+  document.querySelectorAll('.function-profile-dialog [aria-invalid="true"]').forEach((field) => field.removeAttribute("aria-invalid"));
+  const field = document.querySelector(`[data-role="${roleName}"]`);
+  const row = field?.closest(".form-row");
+  row?.classList.add("is-invalid");
+  field?.setAttribute("aria-invalid", "true");
+  row?.scrollIntoView({ block: "center", behavior: "smooth" });
+  window.setTimeout(() => field?.focus(), 80);
+  return showToast(message, "error", false);
+}
+
+function normalizedFunctionName(name) {
+  return String(name || "").trim().toLocaleLowerCase("zh-CN");
 }
 
 function functionBasicFormFields(item = null, productLine = state.selectedProductLine, includeInitialVersion = false) {
   const line = productLines.includes(productLine) ? productLine : productLines[0];
-  const requiredInFirmware = Boolean(state.modal?.requiredInFirmware ?? item?.requiredInFirmware);
+  const draft = state.modal?.draft || createFunctionProfileDraft(item, line);
+  const requiredInFirmware = Boolean(draft.requiredInFirmware);
   const metadataEditable = !item || canEditFunctionMetadata(item);
   const metadataDisabled = metadataEditable ? "" : "disabled";
-  const image = state.functionDraftImage || item?.image || "";
+  const image = draft.image || item?.image || "";
   const lockedSummary = item && !metadataEditable
     ? `<div class="function-locked-summary"><img src="${image}" alt=""><div><strong>${escapeHtml(item.name)}</strong><code>${escapeHtml(item.identifier)}</code><span>${escapeHtml(item.productLine)} · ${escapeHtml(item.category)}</span></div></div>`
     : "";
   const profileFields = metadataEditable
-    ? `${selectField("所属产品线", "modal-function-line", productLines, item?.productLine || line, true, item ? "disabled" : "")}${formField("功能项名称", "modal-function-name", item?.name || "", "请输入功能项名称", true, metadataDisabled)}${formField("功能标识", "modal-function-identifier", item?.identifier || "", "英文开头，仅支持字母、数字和下划线", true, item ? "disabled" : "")}${selectField("功能分类", "modal-function-category", functionCategories, item?.category || functionCategories[0], true, metadataDisabled)}${functionFirmwarePolicyField(requiredInFirmware)}<div class="form-row required"><label>功能说明</label><textarea data-role="modal-function-desc" placeholder="简要描述功能用途和使用场景">${escapeHtml(item?.remark || "")}</textarea></div><div class="form-row required"><label>示例图</label><div><label class="upload-box">${image ? `<img class="upload-preview" src="${image}" alt="预览">` : `<span><span class="upload-plus">＋</span>点击上传</span>`}<input type="file" accept="image/png,image/jpeg" data-role="function-upload"></label><div class="upload-hint">支持 .jpg、.png、.jpeg，建议使用 1:1 图片</div></div></div>`
+    ? `${selectField("所属产品线", "modal-function-line", productLines, draft.productLine || line, true, item ? "disabled" : "")}${formField("功能项名称", "modal-function-name", draft.name, "请输入功能项名称", true, metadataDisabled)}${formField("功能标识", "modal-function-identifier", draft.identifier, "英文开头，仅支持字母、数字和下划线", true, item ? "disabled" : "")}${selectField("功能分类", "modal-function-category", functionCategories, draft.category || functionCategories[0], true, metadataDisabled)}${functionFirmwarePolicyField(requiredInFirmware)}<div class="form-row required"><label>功能说明</label><textarea data-role="modal-function-desc" placeholder="简要描述功能用途和使用场景">${escapeHtml(draft.remark)}</textarea></div><div class="form-row required"><label>示例图</label><div><label class="upload-box">${image ? `<img class="upload-preview" src="${image}" alt="预览">` : `<span><span class="upload-plus">＋</span>点击上传</span>`}<input type="file" accept="image/png,image/jpeg,.jpg,.jpeg,.png" data-role="function-upload"></label><div class="upload-hint">支持 .jpg、.png、.jpeg，单个文件不超过 5 MB，建议使用 1:1 图片</div></div></div>`
     : `${lockedSummary}${functionFirmwarePolicyField(requiredInFirmware)}`;
   const profileSection = `<section class="modal-form-section"><h3>${metadataEditable ? "功能资料" : "功能配置"}</h3>${metadataEditable ? "" : `<div class="info-strip function-edit-lock"><strong>基础资料已锁定</strong><span>当前仅支持调整固件必配设置。</span></div>`}<div class="modal-form">${profileFields}</div></section>`;
-  const initialVersionSection = includeInitialVersion ? `<section class="modal-form-section"><h3>首版信息</h3><div class="modal-form"><div class="form-row"><label>版本号</label><div class="form-static-value"><strong>V1</strong><span>系统自动生成</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-initial-version-changelog" placeholder="说明首版提供的能力和适用场景"></textarea></div></div></section>` : "";
+  const initialVersionSection = includeInitialVersion ? `<section class="modal-form-section"><h3>首版信息</h3><div class="modal-form"><div class="form-row"><label>版本号</label><div class="form-static-value"><strong>V1</strong><span>系统自动生成</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-initial-version-changelog" placeholder="说明首版提供的能力和适用场景">${escapeHtml(draft.changelog)}</textarea></div></div></section>` : "";
   return `${profileSection}${initialVersionSection}`;
 }
 
@@ -2352,10 +2406,15 @@ function modelDetailDataDefinition(owner) {
   const dataType = owner.dataType;
   const spec = parseModelDataSpec(dataType, owner.dataDefinition || "", owner.dataSpec);
   if (["整数型(Int)", "浮点型(float)"].includes(dataType)) {
-    return `<div class="model-detail-definition-grid">${modelDetailMetaItem("最小值", escapeHtml(spec.min || "-"))}${modelDetailMetaItem("最大值", escapeHtml(spec.max || "-"))}${modelDetailMetaItem("步长", escapeHtml(spec.step || "-"))}${modelDetailMetaItem("单位", escapeHtml(spec.unit || "-"))}</div>`;
+    const min = Number(spec.min);
+    const max = Number(spec.max);
+    const defaultValue = Number(owner.defaultValue);
+    const showsMarker = owner.hasDefaultValue && Number.isFinite(min) && Number.isFinite(max) && max > min && Number.isFinite(defaultValue);
+    const markerPosition = showsMarker ? Math.max(0, Math.min(100, ((defaultValue - min) / (max - min)) * 100)) : 0;
+    return `<div class="model-detail-range-card"><div class="model-detail-range-title"><span>有效范围</span><strong>${escapeHtml(spec.min || "-")} <i>至</i> ${escapeHtml(spec.max || "-")}${spec.unit ? `<em>${escapeHtml(spec.unit)}</em>` : ""}</strong></div><div class="model-detail-range-track"><span></span>${showsMarker ? `<i style="left:${markerPosition}%"><b>${escapeHtml(String(owner.defaultValue))}${spec.unit ? ` ${escapeHtml(spec.unit)}` : ""}</b></i>` : ""}</div><div class="model-detail-range-foot"><span>最小值 ${escapeHtml(spec.min || "-")}</span><span>步长 ${escapeHtml(spec.step || "-")}</span><span>最大值 ${escapeHtml(spec.max || "-")}</span></div></div>`;
   }
   if (dataType === "枚举型(Enum)") {
-    return `<div class="data-table-wrap"><table class="mini-table model-detail-table"><thead><tr><th>枚举值</th><th>枚举说明</th></tr></thead><tbody>${spec.enumItems.length ? spec.enumItems.map((item) => `<tr><td><code>${escapeHtml(item.value || "-")}</code></td><td>${escapeHtml(item.label || "-")}</td></tr>`).join("") : `<tr><td colspan="2"><div class="model-detail-empty-inline">暂无枚举值</div></td></tr>`}</tbody></table></div>`;
+    return `<div class="data-table-wrap"><table class="mini-table model-detail-table"><thead><tr><th>枚举值</th><th>业务含义</th></tr></thead><tbody>${spec.enumItems.length ? spec.enumItems.map((item) => `<tr><td><code>${escapeHtml(item.value || "-")}</code></td><td>${escapeHtml(item.label || "-")}</td></tr>`).join("") : `<tr><td colspan="2"><div class="model-detail-empty-inline">暂无枚举值</div></td></tr>`}</tbody></table></div>`;
   }
   if (dataType === "布尔型(Bool)") {
     return `<div class="data-table-wrap"><table class="mini-table model-detail-table"><thead><tr><th>布尔值</th><th>业务含义</th></tr></thead><tbody><tr><td><code>0</code></td><td>${escapeHtml(spec.falseLabel || "-")}</td></tr><tr><td><code>1</code></td><td>${escapeHtml(spec.trueLabel || "-")}</td></tr></tbody></table></div>`;
@@ -2393,8 +2452,8 @@ function modelDetailScalarValue(dataType, value, dataSpecValue) {
 }
 
 function modelDetailDefaultValue(owner) {
-  if (owner.access !== "读写") return `<div class="model-detail-empty-inline">-</div>`;
-  if (!owner.hasDefaultValue) return `<div class="model-detail-empty-inline"><span class="model-detail-default-status off">未配置</span></div>`;
+  if (owner.access !== "读写") return `<div class="model-detail-default-card is-empty"><strong>-</strong></div>`;
+  if (!owner.hasDefaultValue) return `<div class="model-detail-default-card is-empty"><span class="model-detail-default-status off">未配置</span><strong>-</strong></div>`;
   if (owner.dataType === "数组型(array)") {
     const parsed = parsedArrayDefaultValue(owner.defaultValue);
     if (parsed.invalid) return `<div class="model-detail-empty-inline error-copy">默认值格式异常</div>`;
@@ -2405,7 +2464,7 @@ function modelDetailDefaultValue(owner) {
     if (parsed.invalid) return `<div class="model-detail-empty-inline error-copy">默认值格式异常</div>`;
     return `<div class="model-detail-default-head"><span class="model-detail-default-status">已配置 ${Object.keys(parsed.value).length} 个字段</span></div><div class="data-table-wrap"><table class="mini-table model-detail-table model-detail-struct-default-table"><thead><tr><th>字段</th><th>标识符</th><th>类型</th><th>默认值</th></tr></thead><tbody>${owner.dataSpec.fields.length ? owner.dataSpec.fields.map((field) => { const included = Object.hasOwn(parsed.value, field.identifier); return `<tr><td><strong>${escapeHtml(field.name || "-")}</strong></td><td><code>${escapeHtml(field.identifier || "-")}</code></td><td>${escapeHtml(modelDataTypeShortLabel(field.dataType))}</td><td>${included ? modelDetailScalarValue(field.dataType, parsed.value[field.identifier], field.dataSpec) : "-"}</td></tr>`; }).join("") : `<tr><td colspan="4"><div class="model-detail-empty-inline">暂无结构体字段</div></td></tr>`}</tbody></table></div>`;
   }
-  return `<div class="model-detail-simple-value"><span class="model-detail-default-status">已配置</span><strong>${modelDetailScalarValue(owner.dataType, owner.defaultValue, owner.dataSpec)}</strong></div>`;
+  return `<div class="model-detail-default-card"><span class="model-detail-default-status">已配置</span><strong>${modelDetailScalarValue(owner.dataType, owner.defaultValue, owner.dataSpec)}</strong></div>`;
 }
 
 function modelDetailParameterTable(title, parameters, supportsRequired = false) {
@@ -2417,17 +2476,16 @@ function modelDetailBody(modal, item, version) {
   const draft = modal.draft;
   const kindLabel = modelKindLabel(draft.kind);
   const kindClass = draft.kind;
+  const complexProperty = draft.kind === "property" && ["数组型(array)", "结构体(struct)"].includes(draft.dataType);
+  const complexLayout = draft.kind !== "property" || complexProperty;
+  const defaultSummary = draft.kind === "property" ? modelDefaultSummary({ ...draft, kind: "property" }) : "";
   const summary = draft.kind === "property"
-    ? `${modelDetailMetaItem("数据类型", escapeHtml(modelDataTypeShortLabel(draft.dataType)))}${modelDetailMetaItem("访问权限", escapeHtml(draft.access || "-"))}${modelDetailMetaItem("默认值", escapeHtml(draft.access === "读写" ? modelDefaultStatus(draft) : "-"), draft.hasDefaultValue ? "highlight" : "")}`
+    ? `${modelDetailMetaItem("数据类型", escapeHtml(modelDataTypeShortLabel(draft.dataType)))}${modelDetailMetaItem("访问权限", escapeHtml(draft.access || "-"))}${modelDetailMetaItem("默认值", escapeHtml(defaultSummary), draft.hasDefaultValue ? "highlight" : "")}`
     : draft.kind === "service"
       ? `${modelDetailMetaItem("调用方式", escapeHtml(draft.callType || "-"))}${modelDetailMetaItem("输入参数", `${draft.inputParams.length} 项`)}${modelDetailMetaItem("输出参数", `${draft.outputParams.length} 项`)}`
       : `${modelDetailMetaItem("上报方式", "设备主动上报")}${modelDetailMetaItem("输出参数", `${draft.outputParams.length} 项`)}`;
-  const nav = draft.kind === "property"
-    ? [["model-detail-definition", "数据定义"], ["model-detail-default", "默认值"], ["model-detail-remark", "备注"]]
-    : draft.kind === "service"
-      ? [["model-detail-input", "输入参数"], ["model-detail-output", "输出参数"], ["model-detail-remark", "备注"]]
-      : [["model-detail-output", "输出参数"], ["model-detail-remark", "备注"]];
   let content = "";
+  content += modelDetailSection("model-detail-basic", "基本信息", `<div class="model-detail-summary">${summary}</div>`);
   if (draft.kind === "property") {
     content += modelDetailSection("model-detail-definition", "数据定义", modelDetailDataDefinition(draft));
     content += modelDetailSection("model-detail-default", "默认值", modelDetailDefaultValue(draft));
@@ -2438,7 +2496,7 @@ function modelDetailBody(modal, item, version) {
     content += `<section class="model-detail-section" id="model-detail-output">${modelDetailParameterTable("输出参数", draft.outputParams)}</section>`;
   }
   content += modelDetailSection("model-detail-remark", "备注", `<p class="model-detail-remark">${escapeHtml(draft.description || "-")}</p>`);
-  return `<div class="model-detail-view"><div class="model-detail-hero"><div class="model-detail-identity"><div class="model-detail-title-line"><h2>${escapeHtml(draft.name || "未命名物模型")}</h2><span class="model-detail-kind ${kindClass}">${kindLabel}</span>${version ? functionStatusTag(version.status) : ""}</div><div class="model-detail-identifier"><code>${escapeHtml(draft.identifier || "-")}</code><button type="button" class="btn btn-text" data-action="model-detail-copy-identifier" title="复制标识符">复制</button></div><small>${escapeHtml(item?.name || "功能项")} · ${escapeHtml(version?.label || "-")}</small></div><button type="button" class="btn" data-action="model-detail-json" title="查看当前功能版本的完整物模型 JSON">查看 JSON</button></div><div class="model-detail-summary">${summary}</div><nav class="model-detail-nav" aria-label="详情内容定位">${nav.map(([id, label]) => `<button type="button" data-action="model-detail-jump" data-target="${id}">${label}</button>`).join("")}</nav><div class="model-detail-content">${content}</div></div>`;
+  return `<div class="model-detail-view ${complexLayout ? "is-complex" : "is-simple"}"><div class="model-detail-hero"><div class="model-detail-identity"><div class="model-detail-title-line"><h2>${escapeHtml(draft.name || "未命名物模型")}</h2><span class="model-detail-kind ${kindClass}">${kindLabel}</span>${version ? functionStatusTag(version.status) : ""}</div><div class="model-detail-identifier"><code>${escapeHtml(draft.identifier || "-")}</code><button type="button" class="btn btn-text" data-action="model-detail-copy-identifier" title="复制标识符">复制</button></div><div class="model-detail-context"><span>${escapeHtml(item?.name || "功能项")}</span><i></i><span>${escapeHtml(version?.label || "-")}</span></div></div></div><div class="model-detail-content">${content}</div></div>`;
 }
 
 function createModelDetailModal(kind, index) {
@@ -2521,6 +2579,10 @@ function renderModal() {
     wide = true;
     body = functionBasicFormFields(null, modal.targetLine, true);
     footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">创建 V1 并进入配置</button>`;
+  } else if (modal.type === "function-discard-confirm") {
+    title = "放弃未保存内容？";
+    body = `<div class="confirm-copy">当前填写的内容尚未保存，关闭后将无法恢复。</div>`;
+    footer = `<button class="btn" data-action="function-discard-return">继续编辑</button><button class="btn btn-danger" data-action="function-discard-confirm">确认放弃</button>`;
   } else if (modal.type === "function-cross-line-copy") {
     const item = functions.find((entry) => entry.id === modal.id);
     const versions = copySourceVersions(item);
@@ -2544,7 +2606,7 @@ function renderModal() {
     const item = functions.find((entry) => entry.id === modal.id);
     const version = item?.versions.find((entry) => entry.id === modal.versionId);
     title = `编辑版本说明 · ${version?.label || ""}`;
-    body = item && version ? `<div class="modal-form"><div class="form-row"><label>版本号</label><div class="form-static-value"><strong>${version.label}</strong><span>${escapeHtml(functionVersionSourceLabel(item, version))}</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-version-description" placeholder="说明本版本新增、调整或修复的内容">${escapeHtml(version.changelog || "")}</textarea></div></div>` : `<div class="empty-state">该版本已不存在</div>`;
+    body = item && version ? `<div class="modal-form"><div class="form-row"><label>版本号</label><div class="form-static-value"><strong>${version.label}</strong><span>创建于 ${escapeHtml(formatDateTime(version.createdAt))} · ${escapeHtml(version.createdBy || CURRENT_USER_NAME)}</span></div></div><div class="form-row required"><label>版本说明</label><textarea data-role="modal-version-description" placeholder="说明本版本新增、调整或修复的内容">${escapeHtml(version.changelog || "")}</textarea></div></div>` : `<div class="empty-state">该版本已不存在</div>`;
     footer = item && version ? `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">保存</button>` : `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "function-submit-test") {
     const item = functions.find((entry) => entry.id === modal.id);
@@ -2685,7 +2747,7 @@ function renderModal() {
     const counts = [state.configHardware.filter((item) => item.model).length, state.configFunctions.length, state.configParameters.length, state.configTests.length];
     title = "配置预览";
     wide = true;
-    body = `<div class="info-strip">${escapeHtml(machine.name)} · ${machine.line} · ${machine.status}${state.configSavedAt ? ` · 保存于 ${state.configSavedAt}` : " · 尚未保存"}</div><table class="mini-table"><thead><tr><th>配置模块</th><th>已配置数量</th><th>状态</th></tr></thead><tbody>${["硬件配置", "功能配置", "参数配置", "测试项配置"].map((label, index) => `<tr><td>${label}</td><td>${counts[index]}</td><td>${counts[index] ? "已配置" : "待配置"}</td></tr>`).join("")}</tbody></table>`;
+    body = `<div class="info-strip">${escapeHtml(machine.name)} · ${machine.line} · ${machine.status}${state.configSavedAt ? ` · 保存于 ${escapeHtml(formatDateTime(state.configSavedAt))}` : " · 尚未保存"}</div><table class="mini-table"><thead><tr><th>配置模块</th><th>已配置数量</th><th>状态</th></tr></thead><tbody>${["硬件配置", "功能配置", "参数配置", "测试项配置"].map((label, index) => `<tr><td>${label}</td><td>${counts[index]}</td><td>${counts[index] ? "已配置" : "待配置"}</td></tr>`).join("")}</tbody></table>`;
     footer = `<button class="btn btn-primary" data-action="modal-close">关闭预览</button>`;
   } else if (modal.type === "publish") {
     const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
@@ -2882,6 +2944,7 @@ function normalizeFunctionData() {
     let recommendationAssigned = false;
     item.versions.forEach((version) => {
       if (!version.changelog) version.changelog = version.number === 1 ? `${item.name}首版能力配置` : `${item.name} ${version.label} 版本调整`;
+      if (!version.createdBy) version.createdBy = CURRENT_USER_NAME;
       if (version.copiedFrom === undefined) version.copiedFrom = null;
       if (version.baseVersionId === undefined) version.baseVersionId = "";
       if (version.number > 1 && !version.baseVersionId && !version.copiedFrom) {
@@ -2927,7 +2990,7 @@ function normalizeFunctionData() {
         version.firmwareRelationHistory.unshift({
           action: "lifecycle-rule-unlink",
           firmwareRelations: version.firmwareRelations.map((relation) => ({ ...relation })),
-          createdAt: new Date().toLocaleString("zh-CN", { hour12: false }),
+          createdAt: currentDateTime(),
         });
         version.firmwareRelations = [];
       }
@@ -3427,37 +3490,38 @@ function handleModalConfirm() {
       list.push(name);
       state.selectedCategory[modal.assetType] = list.length - 1;
       state.categoryMeta[modal.assetType].push(modal.assetType === "function"
-        ? { remark: description, createdAt: new Date().toLocaleString("zh-CN", { hour12: false }) }
-        : { code: inputValue("modal-category-code"), description, image: img.blue, createdAt: new Date().toLocaleString("zh-CN", { hour12: false }), parameters: [], tests: [] });
+        ? { remark: description, createdAt: currentDateTime() }
+        : { code: inputValue("modal-category-code"), description, image: img.blue, createdAt: currentDateTime(), parameters: [], tests: [] });
     }
     state.modal = null;
     return showToast(modal.edit ? "类目信息已更新" : "类目创建成功");
   }
   if (modal.type === "function-create-entry") {
-    const name = inputValue("modal-function-name");
-    const productLine = inputValue("modal-function-line") || modal.targetLine || productLines[0];
-    const identifier = inputValue("modal-function-identifier");
-    const category = inputValue("modal-function-category");
-    const remark = inputValue("modal-function-desc");
-    const changelog = inputValue("modal-initial-version-changelog");
-    if (!name) return showToast("请填写功能项名称", "error", false);
-    if (!productLines.includes(productLine)) return showToast("请选择目标产品线", "error", false);
-    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(identifier)) return showToast("请填写有效的功能标识", "error", false);
-    if (!category) return showToast("请选择功能分类", "error", false);
-    if (!remark) return showToast("请填写功能说明", "error", false);
-    if (!changelog) return showToast("请填写 V1 版本说明", "error", false);
-    if (functions.some((item) => item.productLine === productLine && item.identifier === identifier)) return showToast("当前产品线已存在相同功能标识", "error", false);
-    if (!state.functionDraftImage) return showToast("请上传功能示例图", "error", false);
+    const draft = modal.draft || createFunctionProfileDraft(null, modal.targetLine);
+    const name = String(draft.name || "").trim();
+    const productLine = String(draft.productLine || modal.targetLine || productLines[0]).trim();
+    const identifier = String(draft.identifier || "").trim();
+    const category = String(draft.category || "").trim();
+    const remark = String(draft.remark || "").trim();
+    const changelog = String(draft.changelog || "").trim();
+    if (!productLines.includes(productLine)) return rejectFunctionProfileField("modal-function-line", "请选择目标产品线");
+    if (!name) return rejectFunctionProfileField("modal-function-name", "请填写功能项名称");
+    if (functions.some((item) => item.productLine === productLine && normalizedFunctionName(item.name) === normalizedFunctionName(name))) return rejectFunctionProfileField("modal-function-name", "当前产品线已存在同名功能");
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(identifier)) return rejectFunctionProfileField("modal-function-identifier", "功能标识需以英文字母开头，且仅支持字母、数字和下划线");
+    if (functions.some((item) => item.productLine === productLine && String(item.identifier || "").toLocaleLowerCase() === identifier.toLocaleLowerCase())) return rejectFunctionProfileField("modal-function-identifier", "当前产品线已存在相同功能标识");
+    if (!category) return rejectFunctionProfileField("modal-function-category", "请选择功能分类");
+    if (!remark) return rejectFunctionProfileField("modal-function-desc", "请填写功能说明");
+    if (!draft.image) return rejectFunctionProfileField("function-upload", "请上传功能示例图");
+    if (!changelog) return rejectFunctionProfileField("modal-initial-version-changelog", "请填写 V1 版本说明");
     const id = `f${Date.now()}`;
-    const createdAt = new Date().toLocaleString("zh-CN", { hour12: false });
+    const createdAt = currentDateTime();
     const version = functionVersion(id, 1, "草稿", 0, { createdAt, changelog });
-    const item = { id, capabilityId: `capability-${Date.now()}`, name, identifier, productLine, category, remark, requiredInFirmware: Boolean(modal.requiredInFirmware), image: state.functionDraftImage, createdAt, versions: [version] };
+    const item = { id, capabilityId: `capability-${Date.now()}`, name, identifier, productLine, category, remark, requiredInFirmware: Boolean(draft.requiredInFirmware), image: draft.image, createdAt, versions: [version] };
     functions.unshift(item);
     state.modelSpecs[`${id}:${version.id}`] = { properties: [], services: [], events: [], hardware: [], savedAt: "" };
     state.selectedProductLine = productLine;
     state.functionVersionSelection[id] = version.id;
     state.modelTab = "model";
-    state.functionDraftImage = "";
     state.modal = null;
     navigate(`/function/detail/${id}`);
     return showToast("V1 草稿已创建，可按需配置物模型和关联硬件");
@@ -3471,7 +3535,7 @@ function handleModalConfirm() {
     if (!productLines.includes(targetLine)) return showToast("请选择目标产线", "error", false);
     if (!availableTargetLines(sourceItem).includes(targetLine)) return showToast("目标产线已存在相同功能", "error", false);
     const id = `f${Date.now()}`;
-    const createdAt = new Date().toLocaleString("zh-CN", { hour12: false });
+    const createdAt = currentDateTime();
     const changelog = `复制自 ${sourceItem.productLine} / ${sourceItem.name} / ${sourceVersion.label}（${sourceVersion.status}）`;
     const version = functionVersion(id, 1, "草稿", 0, {
       createdAt,
@@ -3492,22 +3556,23 @@ function handleModalConfirm() {
   if (modal.type === "function-form") {
     const existing = modal.id ? functions.find((item) => item.id === modal.id) : null;
     if (!existing) return showToast("该功能已不存在", "error", false);
-    const nextRequired = Boolean(modal.requiredInFirmware);
+    const draft = modal.draft || createFunctionProfileDraft(existing, existing.productLine);
+    const nextRequired = Boolean(draft.requiredInFirmware);
     if (!canEditFunctionMetadata(existing)) {
       const policyChanged = existing.requiredInFirmware !== nextRequired;
       existing.requiredInFirmware = nextRequired;
-      state.functionDraftImage = "";
       state.modal = null;
       return showToast(policyChanged ? (nextRequired ? "已设为固件必配能力" : "已调整为可选能力") : "功能配置未发生变化");
     }
-    const name = inputValue("modal-function-name");
-    if (!name) return showToast("请填写功能项名称", "error", false);
-    const category = inputValue("modal-function-category");
-    const remark = inputValue("modal-function-desc");
-    if (!category) return showToast("请选择功能分类", "error", false);
-    if (!remark) return showToast("请填写功能说明", "error", false);
-    Object.assign(existing, { name, category, remark, requiredInFirmware: nextRequired, image: state.functionDraftImage || existing.image });
-    state.functionDraftImage = "";
+    const name = String(draft.name || "").trim();
+    const category = String(draft.category || "").trim();
+    const remark = String(draft.remark || "").trim();
+    if (!name) return rejectFunctionProfileField("modal-function-name", "请填写功能项名称");
+    if (functions.some((item) => item.id !== existing.id && item.productLine === existing.productLine && normalizedFunctionName(item.name) === normalizedFunctionName(name))) return rejectFunctionProfileField("modal-function-name", "当前产品线已存在同名功能");
+    if (!category) return rejectFunctionProfileField("modal-function-category", "请选择功能分类");
+    if (!remark) return rejectFunctionProfileField("modal-function-desc", "请填写功能说明");
+    if (!draft.image) return rejectFunctionProfileField("function-upload", "请上传功能示例图");
+    Object.assign(existing, { name, category, remark, requiredInFirmware: nextRequired, image: draft.image });
     state.modal = null;
     return showToast("功能信息已更新");
   }
@@ -3539,7 +3604,7 @@ function handleModalConfirm() {
     if (!version.changelog) return showToast("缺少版本说明，请退回草稿后补充", "error", false);
     const modelError = modelSpecValidationError(getModelSpec(item.id, version.id));
     if (modelError) return showToast(`物模型配置未完成：${modelError}，请撤回草稿后修正`, "error", false);
-    const publishedAt = new Date().toLocaleString("zh-CN", { hour12: false });
+    const publishedAt = currentDateTime();
     const publishedSnapshot = createFunctionConfigSnapshot(item, version, getModelSpec(item.id, version.id), "PUB", { createdAt: publishedAt });
     version.status = "已发布";
     version.publishedAt = publishedAt;
@@ -3564,7 +3629,7 @@ function handleModalConfirm() {
     const changelog = inputValue("modal-new-version-changelog");
     if (!changelog) return showToast("请填写新版本说明", "error", false);
     const nextNumber = Math.max(...item.versions.map((version) => version.number || 0)) + 1;
-    const next = functionVersion(item.id, nextNumber, "草稿", 0, { createdAt: new Date().toLocaleString("zh-CN", { hour12: false }), changelog, baseVersionId: source.id });
+    const next = functionVersion(item.id, nextNumber, "草稿", 0, { createdAt: currentDateTime(), changelog, baseVersionId: source.id });
     item.versions.unshift(next);
     state.modelSpecs[`${item.id}:${next.id}`] = JSON.parse(JSON.stringify(getModelSpec(item.id, source.id)));
     state.modelSpecs[`${item.id}:${next.id}`].savedAt = "";
@@ -3811,7 +3876,7 @@ function handleModalConfirm() {
     const unavailableGaps = releaseGaps.filter(({ version }) => version?.status !== "测试中");
     if (testingGaps.length) return showToast(`以下功能仍在测试中，暂不能正式发布：${testingGaps.map(({ item }) => item.name).join("、")}`, "error", false);
     if (unavailableGaps.length) return showToast(`以下功能未选择可发布版本：${unavailableGaps.map(({ item }) => item.name).join("、")}`, "error", false);
-    config.savedAt = config.savedAt || new Date().toLocaleString("zh-CN", { hour12: false });
+    config.savedAt = config.savedAt || currentDateTime();
     if (machine) machine.status = "已发布";
     state.modal = null;
     return showToast("机型已发布");
@@ -3929,15 +3994,15 @@ document.addEventListener("click", (event) => {
   else if (action === "asset-detail-edit") { state.assetDraft = null; return navigate(`/form/${target.dataset.type}/edit/${target.dataset.id}`); }
   else if (action === "asset-status-toggle") state.modal = { type: "asset-status-confirm", assetType: target.dataset.type, id: target.dataset.id, returnToDetail: state.modal?.type === "asset-detail" };
   else if (action === "asset-refs") { const cfg = assetConfigs[target.dataset.type]; const row = cfg.rows.find((item) => item.id === target.dataset.id); state.modal = { type: "refs", refs: row?.refs || 0 }; }
-  else if (action === "function-line-select") { state.selectedProductLine = target.dataset.line; state.functionCategory = "全部"; state.functionStatus = "全部"; state.functionPage = 1; }
+  else if (action === "function-line-select") { state.selectedProductLine = target.dataset.line; state.functionCategory = "全部"; state.functionPage = 1; }
   else if (action === "function-view-mode") {
     state.functionViewMode = target.dataset.mode === "card" ? "card" : "list";
     persistState();
   }
   else if (action === "function-add") {
     if (state.selectedProductLine === GLOBAL_PRODUCT_LINE) return showToast("请先选择具体产线再新增功能", "error");
-    state.functionDraftImage = "";
-    state.modal = { type: "function-create-entry", targetLine: state.selectedProductLine, requiredInFirmware: false };
+    const draft = createFunctionProfileDraft(null, state.selectedProductLine);
+    state.modal = { type: "function-create-entry", targetLine: state.selectedProductLine, draft, initialDraft: functionProfileSnapshot(draft) };
   }
   else if (action === "function-copy-crossline") {
     const item = functions.find((entry) => entry.id === target.dataset.id);
@@ -3959,12 +4024,12 @@ document.addEventListener("click", (event) => {
   else if (action === "function-edit") {
     const item = functions.find((entry) => entry.id === (target.dataset.id || state.modal?.id));
     if (!item) return showToast("该功能已不存在", "error");
-    state.functionDraftImage = "";
-    state.modal = { type: "function-form", id: item.id, requiredInFirmware: Boolean(item.requiredInFirmware) };
+    const draft = createFunctionProfileDraft(item, item.productLine);
+    state.modal = { type: "function-form", id: item.id, draft, initialDraft: functionProfileSnapshot(draft) };
   }
   else if (action === "function-policy-toggle") {
-    if (!["function-create-entry", "function-form"].includes(state.modal?.type)) return;
-    state.modal.requiredInFirmware = !state.modal.requiredInFirmware;
+    if (!["function-create-entry", "function-form"].includes(state.modal?.type) || !state.modal.draft) return;
+    state.modal.draft.requiredInFirmware = !state.modal.draft.requiredInFirmware;
   }
   else if (action === "function-edit-version") state.modal = { type: "function-version-info", id: target.dataset.id, versionId: target.dataset.version };
   else if (action === "function-submit-test") {
@@ -4057,9 +4122,6 @@ document.addEventListener("click", (event) => {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(onSuccess).catch(onFallback);
     else onFallback();
     return;
-  }
-  else if (action === "model-detail-json") {
-    state.modal = { type: "model-preview", previewMode: "current", returnModal: deepClone(state.modal) };
   }
   else if (action === "model-kind") { state.modal.draft.kind = target.dataset.kind; state.modal.dirty = true; render(); return; }
   else if (action === "model-access") {
@@ -4443,8 +4505,20 @@ document.addEventListener("click", (event) => {
     spec.savedAt = "";
     return showToast("关联硬件已移除");
   }
+  else if (action === "function-discard-return") { state.modal = state.modal?.previousModal || null; render(); return; }
+  else if (action === "function-discard-confirm") { state.modal = null; render(); return; }
   else if (action === "modal-close" || action === "modal-backdrop") {
     const currentModal = state.modal;
+    if (["function-create-entry", "function-form"].includes(currentModal?.type) && functionProfileIsDirty(currentModal)) {
+      state.modal = { type: "function-discard-confirm", previousModal: currentModal };
+      render();
+      return;
+    }
+    if (currentModal?.type === "function-discard-confirm") {
+      state.modal = currentModal.previousModal;
+      render();
+      return;
+    }
     if (currentModal?.type === "model-form" && currentModal.dirty) {
       state.modal = { type: "model-discard-confirm", previousModal: currentModal };
       render();
@@ -4466,7 +4540,6 @@ document.addEventListener("click", (event) => {
       return;
     }
     state.modal = currentModal?.returnToDetail ? { type: "asset-detail", assetType: currentModal.assetType, id: currentModal.id } : null;
-    state.functionDraftImage = "";
     state.machineDraftImage = "";
   }
   else if (action === "model-discard-return") { state.modal = state.modal.previousModal; render(); return; }
@@ -4510,7 +4583,7 @@ document.addEventListener("click", (event) => {
       code,
       description: inputValue("category-description"),
       image: draft.image,
-      createdAt: state.categoryMeta[draft.type][index]?.createdAt || new Date().toLocaleString("zh-CN", { hour12: false }),
+      createdAt: state.categoryMeta[draft.type][index]?.createdAt || currentDateTime(),
       parameters: draft.parameters.map((row) => ({ ...row })),
       tests: draft.tests.map((row) => ({ ...row })),
     };
@@ -4565,7 +4638,7 @@ document.addEventListener("click", (event) => {
   }
   else if (action === "config-filter") { state.configHardwareFilter = target.dataset.filter; return showToast(`已筛选：${target.dataset.filter}`); }
   else if (action === "config-clear") state.modal = { type: "config-clear-confirm", scope: state.configTab };
-  else if (action === "config-save") { state.configSavedAt = new Date().toLocaleString("zh-CN", { hour12: false }); return showToast("配置已保存"); }
+  else if (action === "config-save") { state.configSavedAt = currentDateTime(); return showToast("配置已保存"); }
   else if (action === "config-preview") state.modal = { type: "config-preview" };
   else if (action === "publish-machine") state.modal = { type: "publish", id: route().split("/")[3] || machines[0]?.id };
   else if (action === "logs-open") state.modal = { type: "logs" };
@@ -4594,6 +4667,7 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("input", (event) => {
   if (syncModelDraftInput(event.target)) return;
+  if (syncFunctionProfileDraft(event.target)) return;
   if (event.target.matches('[data-role="modal-model-import"]') && state.modal?.type === "model-import") {
     state.modal.raw = event.target.value;
   } else if (event.target.matches('[data-role="category-search"]')) {
@@ -4654,6 +4728,7 @@ document.addEventListener("change", (event) => {
     if (event.target.matches("select")) render();
     return;
   }
+  if (syncFunctionProfileDraft(event.target)) return;
   if (event.target.matches('[data-role="model-import-file"]') && event.target.files?.[0]) {
     const file = event.target.files[0];
     if (!file.name.toLowerCase().endsWith(".json")) {
@@ -4683,15 +4758,29 @@ document.addEventListener("change", (event) => {
     reader.onload = () => { state.assetDraft.image = reader.result; render(); };
     reader.readAsDataURL(event.target.files[0]);
   } else if (event.target.matches('[data-role="function-upload"]') && event.target.files?.[0]) {
+    const file = event.target.files[0];
+    const uploadModal = state.modal;
+    const validExtension = /\.(?:jpe?g|png)$/i.test(file.name);
+    const validMime = !file.type || ["image/jpeg", "image/png"].includes(file.type);
+    if (!validExtension || !validMime) {
+      event.target.value = "";
+      return rejectFunctionProfileField("function-upload", "仅支持 JPG、JPEG、PNG 格式图片");
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      event.target.value = "";
+      return rejectFunctionProfileField("function-upload", "图片大小不能超过 5 MB");
+    }
     const reader = new FileReader();
     reader.onload = () => {
-      state.functionDraftImage = reader.result;
-      const box = event.target.closest(".upload-box");
-      box?.querySelector(".upload-preview")?.remove();
-      box?.querySelector(":scope > span")?.remove();
-      box?.insertAdjacentHTML("afterbegin", `<img class="upload-preview" src="${reader.result}" alt="预览">`);
+      if (state.modal !== uploadModal || !["function-create-entry", "function-form"].includes(state.modal?.type) || !state.modal.draft) return;
+      state.modal.draft.image = String(reader.result || "");
+      clearFunctionProfileError(event.target);
+      render();
     };
-    reader.readAsDataURL(event.target.files[0]);
+    reader.onerror = () => {
+      if (state.modal === uploadModal) rejectFunctionProfileField("function-upload", "图片读取失败，请重新选择");
+    };
+    reader.readAsDataURL(file);
   } else if (event.target.matches('[data-role="machine-upload"]') && event.target.files?.[0]) {
     const reader = new FileReader();
     reader.onload = () => {
@@ -4722,10 +4811,6 @@ document.addEventListener("change", (event) => {
     render();
   } else if (event.target.matches('[data-role="function-category-filter"]')) {
     state.functionCategory = event.target.value;
-    state.functionPage = 1;
-    render();
-  } else if (event.target.matches('[data-role="function-status-filter"]')) {
-    state.functionStatus = event.target.value;
     state.functionPage = 1;
     render();
   } else if (event.target.matches('[data-role="pagination-size"]')) {
