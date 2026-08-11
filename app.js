@@ -2863,12 +2863,9 @@ function renderModal() {
     footer = `<button class="btn btn-primary" data-action="modal-close">关闭预览</button>`;
   } else if (modal.type === "machine-submit-test") {
     const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
-    const config = activeMachineConfig(machine.id);
-    const hardwareReady = machineHardwareReady(machine.id);
-    const testingGaps = machineFunctionGaps(machine.id, ["测试中", "已发布"]);
     title = "提交测试";
-    body = `<div class="confirm-copy">确认提交“${escapeHtml(machine.name)}”进入测试中吗？提交后配置将冻结，产测可调用该机型配置。</div><div class="release-checklist"><div><span>硬件配置</span><strong>${hardwareReady ? "已完成" : "待完善"}</strong></div><div><span>功能配置</span><strong>${testingGaps.length ? `${testingGaps.length} 项不可测试` : `${config.functions.length} 项可测试`}</strong></div></div>${testingGaps.length ? `<div class="warning-strip"><strong>存在不可测试的功能版本</strong><span>${testingGaps.map(({ item, version }) => `${escapeHtml(item.name)}${version ? `（${version.status}）` : "（未选择版本）"}`).join("、")}</span></div>` : `<div class="testing-strip"><strong>测试中将作为预发布配置</strong><span>调试不通过可撤回到开发中继续修改；历史调试记录保留。</span></div>`}`;
-    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm" ${hardwareReady && !testingGaps.length ? "" : "disabled"}>确认提交</button>`;
+    body = `<div class="confirm-copy">确认提交“${escapeHtml(machine.name)}”进入测试中吗？</div><div class="testing-strip"><strong>提交后作为预发布配置</strong><span>产测可调用该机型进行调试；如需调整，可撤回到开发中继续修改。</span></div>`;
+    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">确认提交</button>`;
   } else if (modal.type === "machine-withdraw-test") {
     const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
     title = "撤回测试";
@@ -4020,9 +4017,6 @@ function handleModalConfirm() {
   if (modal.type === "machine-submit-test") {
     const machine = machines.find((item) => item.id === modal.id);
     if (!machine || normalizeMachineStatus(machine.status) !== "开发中") return showToast("只有开发中的机型可以提交测试", "error", false);
-    if (!machineHardwareReady(machine.id)) return showToast("请先完成所有硬件类目的型号配置", "error", false);
-    const testingGaps = machineFunctionGaps(machine.id, ["测试中", "已发布"]);
-    if (testingGaps.length) return showToast(`以下功能未选择可测试版本：${testingGaps.map(({ item }) => item.name).join("、")}`, "error", false);
     const now = currentDateTime();
     const config = activeMachineConfig(machine.id);
     config.savedAt = config.savedAt || now;
