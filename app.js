@@ -57,6 +57,32 @@ const assetConfigs = {
   },
 };
 
+const MACHINE_STATUSES = ["开发中", "测试中", "已发布", "已停用"];
+const MACHINE_STATUS_META = {
+  "开发中": { className: "draft", label: "开发中", hint: "可编辑；固件发布可调用，需风险确认。" },
+  "测试中": { className: "testing", label: "测试中", hint: "配置已冻结；产测可调用，支持撤回修改。" },
+  "已发布": { className: "published", label: "已发布", hint: "正式生效；不可直接编辑，可发起新调整。" },
+  "已停用": { className: "disabled", label: "已停用", hint: "不再新增调用；历史记录保留。" },
+};
+
+function normalizeMachineStatus(status = "开发中") {
+  if (status === "已停产") return "已停用";
+  return MACHINE_STATUSES.includes(status) ? status : "开发中";
+}
+
+function normalizeMachineRecord(machine, index = 0) {
+  const normalized = {
+    ...machine,
+    status: normalizeMachineStatus(machine.status),
+    createdAt: formatDateTime(machine.createdAt || "2026-07-09 13:46:16"),
+    updatedAt: formatDateTime(machine.updatedAt || machine.createdAt || `2026-07-${String(Math.min(28, 9 + index)).padStart(2, "0")} 13:46:16`),
+  };
+  if (!normalized.line) normalized.line = "IPC";
+  if (!normalized.arch) normalized.arch = "新架构";
+  if (!normalized.description) normalized.description = "-";
+  return normalized;
+}
+
 const machines = [
   ["m1", "23.110.200", "仅4G", "常电", "23.110.200", img.goose, "开发中"],
   ["m2", "23.230.111", "wifi + 4G", "常电", "23.230.111", img.goose, "开发中"],
@@ -65,7 +91,7 @@ const machines = [
   ["m5", "测试机型5(1)", "网线 + wifi", "低功耗", "-", img.blue, "开发中"],
   ["m6", "testtest333344444(2)", "-", "-", "-", img.camera, "开发中"],
   ["m7", "testtest333344444(1)", "-", "-", "-", img.camera, "开发中"],
-  ["m8", "新流程", "wifi + 4G", "常电", "23.210.211", img.goose, "开发中"],
+  ["m8", "新流程", "wifi + 4G", "常电", "23.210.211", img.goose, "测试中"],
   ["m9", "测试机型7", "网线 + 4G", "常电", "99.789.23", img.camera, "开发中"],
   ["m10", "0.1.2", "-", "-", "-", img.blue, "开发中"],
   ["m11", "0.0.1", "-", "-", "0.0.1", img.blue, "开发中"],
@@ -73,12 +99,12 @@ const machines = [
   ["m13", "23.220.221", "-", "-", "23.220.221", img.blue, "已发布"],
   ["m14", "10.12.70", "-", "-", "10.12.70", img.blue, "开发中"],
   ["m15", "23.442.209", "-", "-", "23.442.209", img.blue, "已发布"],
-  ["m16", "17.4.1", "-", "-", "17.4.1", img.blue, "已停产"],
+  ["m16", "17.4.1", "-", "-", "17.4.1", img.blue, "已停用"],
   ["m17", "120.8.53", "-", "-", "120.8.53", img.blue, "开发中"],
   ["m18", "13.1.1", "-", "-", "13.1.1", img.blue, "已发布"],
   ["m19", "5.0.1", "-", "-", "5.0.1", img.blue, "开发中"],
   ["m20", "23.102.209", "-", "-", "23.102.209", img.blue, "开发中"],
-].map(([id, name, network, power, firmware, image, status]) => ({ id, name, network, power, firmware, image, status, line: "IPC", arch: "新架构", description: "-" }));
+].map(([id, name, network, power, firmware, image, status], index) => normalizeMachineRecord({ id, name, network, power, firmware, image, status, line: "IPC", arch: "新架构", description: "-" }, index));
 
 function mockFirmwareRelation(id, machineId, firmwareIdentifier, firmwareVersion, linkedAt, coveredDeviceCount = null) {
   return { id, machineId, firmwareIdentifier, firmwareVersion, linkedAt, coveredDeviceCount, source: "固件发布系统" };
@@ -273,7 +299,7 @@ function createMockModelSpec(functionId, index = 0) {
 const initialModelSpecs = Object.fromEntries(functions.flatMap((item, index) => item.versions.map((version) => [`${item.id}:${version.id}`, createMockModelSpec(`${item.id}-${version.id}`, index)])));
 
 const STORAGE_KEY = "viot-prototype-state-v10";
-const STORAGE_VERSION = 10;
+const STORAGE_VERSION = 11;
 
 function defaultTemplateRows() {
   return [{ key: "test_1", label: "测试硬件参数", type: "布尔型（Boolean）", attribute: "true", remark: "123" }];
@@ -293,6 +319,12 @@ function createMachineConfig() {
     parameters: [],
     tests: [],
     savedAt: "",
+    testingSnapshot: null,
+    publishedSnapshot: null,
+    testingAt: "",
+    publishedAt: "",
+    withdrawnAt: "",
+    disabledAt: "",
     hardwareFilter: "不限",
     hardwareSearch: "",
   };
@@ -359,7 +391,7 @@ function activeMachineConfig(machineId = activeMachineId()) {
     return { functionId: binding, versionId: latestPublishedVersion(item)?.id || item?.versions?.[0]?.id || "", source: "manual" };
   });
   const machine = machines.find((entry) => entry.id === id);
-  if (machine) {
+  if (machine?.status === "开发中") {
     functions.filter((item) => item.productLine === machine.line && item.requiredInFirmware).forEach((item) => {
       const existing = config.functions.find((binding) => binding.functionId === item.id);
       if (!existing) {
@@ -372,6 +404,12 @@ function activeMachineConfig(machineId = activeMachineId()) {
   if (!Array.isArray(config.parameters)) config.parameters = [];
   if (!Array.isArray(config.tests)) config.tests = [];
   if (typeof config.savedAt !== "string") config.savedAt = "";
+  if (!config.testingSnapshot || typeof config.testingSnapshot !== "object") config.testingSnapshot = null;
+  if (!config.publishedSnapshot || typeof config.publishedSnapshot !== "object") config.publishedSnapshot = null;
+  if (typeof config.testingAt !== "string") config.testingAt = "";
+  if (typeof config.publishedAt !== "string") config.publishedAt = "";
+  if (typeof config.withdrawnAt !== "string") config.withdrawnAt = "";
+  if (typeof config.disabledAt !== "string") config.disabledAt = "";
   if (typeof config.hardwareFilter !== "string") config.hardwareFilter = "不限";
   if (typeof config.hardwareSearch !== "string") config.hardwareSearch = "";
   return config;
@@ -488,7 +526,7 @@ function navTemplate() {
 function getHeading(current) {
   if (current.startsWith("/machine/config")) {
     const machine = machines.find((item) => item.id === current.split("/")[3]) || machines[0];
-    return { title: "编辑机型", back: "/machine", actions: `<button class="btn btn-primary" data-action="publish-machine">↗ ${machine?.status === "已发布" ? "重新发布" : "立即发布"}</button>` };
+    return { title: normalizeMachineStatus(machine?.status) === "开发中" ? "编辑机型配置" : "机型配置详情", back: "/machine", actions: `<div class="header-actions">${machineWorkflowActions(machine)}</div>` };
   }
   if (current.startsWith("/form/")) {
     const [, , type, mode] = current.split("/");
@@ -546,7 +584,7 @@ function appShell(pageHtml) {
 
 function machinePage() {
   const filter = state.machineFilter;
-  const statuses = ["全部", "开发中", "已发布", "已停产"];
+  const statuses = ["全部", ...MACHINE_STATUSES];
   const networks = ["全部", "仅wifi", "仅4G", "wifi+4G", "网线+4G", "网线+WIFI", "仅网线"];
   const powers = ["全部", "常电", "低功耗"];
   const visible = filteredMachines();
@@ -578,7 +616,7 @@ function filteredMachines() {
   const filter = state.machineFilter;
   const normalizeNetwork = (value) => String(value).toLowerCase().replaceAll(" ", "");
   return machines.filter((machine) => machine.line === filter.line
-    && (filter.status === "全部" || machine.status === filter.status)
+    && (filter.status === "全部" || normalizeMachineStatus(machine.status) === filter.status)
     && (filter.network === "全部" || normalizeNetwork(machine.network) === normalizeNetwork(filter.network))
     && (filter.power === "全部" || machine.power === filter.power)
     && (!filter.search || `${machine.name}${machine.firmware}`.toLowerCase().includes(filter.search.toLowerCase())));
@@ -589,16 +627,85 @@ function filterSection(title, key, values, active, icon) {
 }
 
 function machineCard(machine) {
-  return `<article class="machine-card" tabindex="0">
-    <span class="status-ribbon">${machine.status}</span>
+  const status = normalizeMachineStatus(machine.status);
+  return `<article class="machine-card machine-card-${machineStatusClass(status)}" tabindex="0">
+    <span class="status-ribbon ${machineStatusClass(status)}">${status}</span>
     <div class="machine-card-head"><img class="device-thumb" src="${machine.image}" alt=""><div><h3>${escapeHtml(machine.name)}</h3><span class="product-tag">${machine.line}</span></div></div>
-    <div class="machine-card-meta"><span>网络类型：　${machine.network}</span><span>电量类型：　${machine.power}</span><span>固件标识：　${machine.firmware}</span></div>
+    <div class="machine-card-meta"><span>网络类型：　${escapeHtml(machine.network)}</span><span>电量类型：　${escapeHtml(machine.power)}</span><span>固件标识：　${escapeHtml(machine.firmware)}</span></div>
     <div class="machine-actions">
       <button class="btn" data-action="machine-edit" data-id="${machine.id}">✎ 编辑</button>
       <button class="btn" data-action="machine-config" data-id="${machine.id}">◉ 去配置</button>
       <button class="btn" data-action="machine-delete" data-id="${machine.id}">♲ 删除</button>
     </div>
   </article>`;
+}
+
+function machineStatusClass(status) {
+  return MACHINE_STATUS_META[normalizeMachineStatus(status)]?.className || "draft";
+}
+
+function machineStatusTag(status) {
+  const normalized = normalizeMachineStatus(status);
+  return `<span class="function-status ${machineStatusClass(normalized)}">${normalized}</span>`;
+}
+
+function machineWorkflowActions(machine) {
+  const id = machine?.id || "";
+  const status = normalizeMachineStatus(machine?.status);
+  const button = (label, action, tone = "") => `<button class="btn ${tone}" data-action="${action}" data-id="${id}">${label}</button>`;
+  if (status === "开发中") return `${button("提交测试", "machine-submit-test")}${button("发布", "publish-machine", "btn-primary")}`;
+  if (status === "测试中") return `${button("撤回测试", "machine-withdraw-test")}${button("发布", "publish-machine", "btn-primary")}`;
+  if (status === "已发布") return button("编辑配置", "machine-start-edit", "btn-primary");
+  return button("重新启用", "machine-reactivate", "btn-primary");
+}
+
+function isMachineConfigEditable(machine) {
+  return normalizeMachineStatus(machine?.status) === "开发中";
+}
+
+function machineConfigFlow(machine) {
+  const status = normalizeMachineStatus(machine?.status);
+  return `<div class="machine-flow">${MACHINE_STATUSES.map((item, index) => {
+    const done = status !== "已停用" && MACHINE_STATUSES.indexOf(status) > index;
+    return `<div class="machine-flow-step ${item === status ? "active" : ""} ${done ? "done" : ""}"><span>${index + 1}</span><strong>${item}</strong></div>`;
+  }).join("")}</div>`;
+}
+
+function machineHardwareReady(machineId) {
+  const hardware = activeMachineConfig(machineId).hardware || [];
+  return hardware.length > 0 && hardware.every((item) => item.model);
+}
+
+function machineFunctionGaps(machineId, allowedStatuses) {
+  const config = activeMachineConfig(machineId);
+  return (config.functions || []).map((binding) => {
+    const item = functions.find((entry) => entry.id === binding.functionId);
+    const version = item?.versions.find((entry) => entry.id === binding.versionId) || null;
+    return { item, version, binding };
+  }).filter(({ item, version }) => item && (!version || !allowedStatuses.includes(version.status)));
+}
+
+function machineSnapshot(machineId) {
+  const config = activeMachineConfig(machineId);
+  return {
+    hardware: deepClone(config.hardware || []),
+    functions: deepClone(config.functions || []),
+    parameters: deepClone(config.parameters || []),
+    tests: deepClone(config.tests || []),
+    savedAt: config.savedAt || currentDateTime(),
+    snapshotAt: currentDateTime(),
+  };
+}
+
+function markMachineUpdated(machine, time = currentDateTime()) {
+  if (machine) machine.updatedAt = time;
+}
+
+function ensureActiveMachineEditable() {
+  const machine = machines.find((entry) => entry.id === activeMachineId()) || machines[0];
+  if (isMachineConfigEditable(machine)) return true;
+  showToast(`${normalizeMachineStatus(machine?.status)}状态不可编辑，请先调整机型状态`, "error", false);
+  return false;
 }
 
 function pagination(total, page = 1, pageSize = 24, context = "machine") {
@@ -1978,19 +2085,22 @@ function testDraftRow(row, index, readOnly) {
   return `<tr><td>${escapeHtml(row.key || "-")}</td><td>${escapeHtml(row.label || "-")}</td><td>${escapeHtml(row.expected || "-")}</td><td>${row.wait || 1000}</td><td>${escapeHtml(row.manual || "否")}</td><td>${escapeHtml(row.write || "否")}</td><td>${escapeHtml(row.jsonPath || "-")}</td><td>${escapeHtml(row.url || "-")}</td><td>${escapeHtml(row.requestType || "-")}</td><td>${escapeHtml(row.headers || "-")}</td><td>${escapeHtml(row.body || "-")}</td><td>${escapeHtml(row.remark || "-")}</td>${readOnly ? "" : `<td><button class="btn btn-text" data-action="asset-test-edit" data-index="${index}">编辑</button><button class="btn btn-text danger-text" data-action="draft-row-remove" data-kind="test" data-index="${index}">删除</button></td>`}</tr>`;
 }
 
-function configTestRow(row, index) {
-  return `<tr><td>${escapeHtml(row.key || "-")}</td><td>${escapeHtml(row.label || "-")}</td><td>${escapeHtml(row.expected || "-")}</td><td>${row.wait || 1000}</td><td>${escapeHtml(row.manual || "否")}</td><td>${escapeHtml(row.write || "否")}</td><td>${escapeHtml(row.jsonPath || "-")}</td><td>${escapeHtml(row.url || "-")}</td><td>${escapeHtml(row.requestType || "-")}</td><td>${escapeHtml(row.headers || "-")}</td><td>${escapeHtml(row.body || "-")}</td><td>${escapeHtml(row.remark || "-")}</td><td><button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="test" data-index="${index}">删除</button></td></tr>`;
+function configTestRow(row, index, editable = true) {
+  return `<tr><td>${escapeHtml(row.key || "-")}</td><td>${escapeHtml(row.label || "-")}</td><td>${escapeHtml(row.expected || "-")}</td><td>${row.wait || 1000}</td><td>${escapeHtml(row.manual || "否")}</td><td>${escapeHtml(row.write || "否")}</td><td>${escapeHtml(row.jsonPath || "-")}</td><td>${escapeHtml(row.url || "-")}</td><td>${escapeHtml(row.requestType || "-")}</td><td>${escapeHtml(row.headers || "-")}</td><td>${escapeHtml(row.body || "-")}</td><td>${escapeHtml(row.remark || "-")}</td><td>${editable ? `<button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="test" data-index="${index}">删除</button>` : "-"}</td></tr>`;
 }
 
 function machineConfigPage() {
   const machineId = route().split("/")[3] || machines[0]?.id;
   const machine = machines.find((item) => item.id === machineId) || machines[0];
   const tab = state.configTab;
+  const editable = isMachineConfigEditable(machine);
   return `<section class="surface config-page">
-    <div class="detail-banner config-banner"><img class="banner-icon" src="${machine.image}" alt=""><div class="banner-copy"><h2>${machine.name}　<span class="status-tag">${machine.status}</span></h2><div class="banner-meta"><span>PID： <strong>2075094162087653377</strong></span><span>创建时间： <strong>2026-07-09 13:46:16</strong></span><span>网络类型： <strong>${machine.network}</strong></span><span>电量类型： <strong>${machine.power}</strong></span><span>所属架构： <strong>${escapeHtml(machine.arch || "新架构")}</strong></span><span>所属产线： <strong>${machine.line}</strong></span><span>机型密钥： <strong>-</strong></span><span>说明： <strong>${escapeHtml(machine.description || "-")}</strong></span></div></div><div class="banner-actions"><button class="btn" data-action="logs-open">▣ 操作日志</button><button class="btn" data-action="more-open" data-id="${machine.id}">⋯ 更多</button></div></div>
+    <div class="detail-banner config-banner"><img class="banner-icon" src="${machine.image}" alt=""><div class="banner-copy"><h2>${escapeHtml(machine.name)}　${machineStatusTag(machine.status)}</h2><div class="banner-meta"><span>PID： <strong>2075094162087653377</strong></span><span>创建时间： <strong>${escapeHtml(formatDateTime(machine.createdAt))}</strong></span><span>更新时间： <strong>${escapeHtml(formatDateTime(machine.updatedAt))}</strong></span><span>网络类型： <strong>${escapeHtml(machine.network)}</strong></span><span>电量类型： <strong>${escapeHtml(machine.power)}</strong></span><span>所属架构： <strong>${escapeHtml(machine.arch || "新架构")}</strong></span><span>所属产线： <strong>${escapeHtml(machine.line)}</strong></span><span>机型密钥： <strong>-</strong></span><span>说明： <strong>${escapeHtml(machine.description || "-")}</strong></span></div></div><div class="banner-actions"><button class="btn" data-action="logs-open">▣ 操作日志</button><button class="btn" data-action="more-open" data-id="${machine.id}">⋯ 更多</button></div></div>
+    ${machineConfigFlow(machine)}
+    ${editable ? "" : `<div class="config-lock-strip ${machineStatusClass(machine.status)}"><strong>${escapeHtml(normalizeMachineStatus(machine.status))}</strong><span>${escapeHtml(MACHINE_STATUS_META[normalizeMachineStatus(machine.status)]?.hint || "")}</span></div>`}
     <div class="config-tabs">${[["hardware", "硬件配置"], ["function", "功能配置"], ["parameter", "参数配置"], ["test", "测试项配置"]].map(([id, label]) => `<button class="${tab === id ? "active" : ""}" data-action="config-tab" data-tab="${id}">${label}</button>`).join("")}</div>
     <div class="config-content">${configTabContent(tab, machine)}</div>
-    <div class="config-footer"><button class="btn btn-primary" data-action="config-save">保存</button><button class="btn" data-action="config-preview">预览配置</button></div>
+    <div class="config-footer"><button class="btn btn-primary" data-action="config-save" ${editable ? "" : "disabled"}>保存</button><button class="btn" data-action="config-preview">预览配置</button></div>
   </section>`;
 }
 
@@ -2006,7 +2116,7 @@ function configHardwareCandidates(category) {
   return assetConfigs.hardware.rows.map((row) => ({ name: row.name, type: row.type, maker: row.maker, main: false }));
 }
 
-function configHardwareCards(item, index) {
+function configHardwareCards(item, index, editable = true) {
   const query = state.configHardwareSearch.toLowerCase();
   const candidates = configHardwareCandidates(item.category).filter((candidate) => {
     const filterMatches = state.configHardwareFilter === "不限"
@@ -2015,14 +2125,16 @@ function configHardwareCards(item, index) {
     return filterMatches && searchMatches;
   });
   return candidates.length
-    ? `<div class="hardware-choice-grid">${candidates.map((candidate) => `<button class="hardware-choice-card ${item.model === candidate.name ? "selected" : ""}" data-action="config-hardware-pick" data-index="${index}" data-model="${escapeHtml(candidate.name)}"><span class="choice-check">${item.model === candidate.name ? "✓" : ""}</span><strong>${escapeHtml(candidate.name)}</strong>${candidate.main ? `<span class="main-board-tag">主板</span>` : ""}<span>类型：${escapeHtml(candidate.type)}</span><span>生产厂商：${escapeHtml(candidate.maker)}</span></button>`).join("")}</div>`
+    ? `<div class="hardware-choice-grid">${candidates.map((candidate) => `<button class="hardware-choice-card ${item.model === candidate.name ? "selected" : ""}" data-action="config-hardware-pick" data-index="${index}" data-model="${escapeHtml(candidate.name)}" ${editable ? "" : "disabled"}><span class="choice-check">${item.model === candidate.name ? "✓" : ""}</span><strong>${escapeHtml(candidate.name)}</strong>${candidate.main ? `<span class="main-board-tag">主板</span>` : ""}<span>类型：${escapeHtml(candidate.type)}</span><span>生产厂商：${escapeHtml(candidate.maker)}</span></button>`).join("")}</div>`
     : `<div class="empty-state">暂无符合筛选条件的硬件型号</div>`;
 }
 
-function configTabContent(tab) {
+function configTabContent(tab, machine = machines.find((entry) => entry.id === activeMachineId()) || machines[0]) {
+  const editable = isMachineConfigEditable(machine);
+  const disabledAttr = editable ? "" : "disabled";
   if (tab === "hardware") {
     const configured = state.configHardware.filter((item) => item.model).length;
-    return `<div class="info-strip">ⓘ 首先根据当前的机型型号信息进行选择添加硬件类目，再选择硬件类目对应的硬件列表去配置，组成完整的机型硬件BOM物料清单；</div><div class="config-controls"><button class="btn btn-primary" data-action="config-category-add">＋ 添加类目</button><span>已配置 ${configured} 项</span><button class="btn btn-text" data-action="config-clear">全部清除</button></div>${state.configHardware.length ? state.configHardware.map((item, index) => `<div class="category-config-row"><strong>${escapeHtml(item.category)} <span style="color:#ed5b5b">*</span></strong><button class="choose-card ${item.model ? "selected" : ""}" data-action="config-choose" data-index="${index}">${item.model ? escapeHtml(item.model) : "请点击选择"} <span>›</span></button><div class="config-filter-panel"><h3>请选择　${escapeHtml(item.category)}<span style="color:#ed5b5b">*</span></h3><div class="searchbox"><input data-role="config-hardware-search" data-index="${index}" value="${escapeHtml(state.configHardwareSearch)}" placeholder="请输入型号名称，按enter搜索"></div><div class="inline-filter"><span>${escapeHtml(item.category)}类型：</span>${["不限", "CCD", "镜头板", "低功耗Wi-Fi", "常电WIFI", "灯板", "MINI", "AI_4G", "功能板", "低功耗4G", "主板"].map((value) => `<button class="btn btn-text ${state.configHardwareFilter === value ? "active-filter" : ""}" data-action="config-filter" data-filter="${value}">${value}</button>`).join("")}</div><div class="config-rule">ⓘ ${escapeHtml(item.category)}仅支持配置1个主板${escapeHtml(item.category)}</div>${configHardwareCards(item, index)}</div><button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="hardware" data-index="${index}">移除类目</button></div>`).join("") : `<div class="empty-state">暂未添加硬件类目</div>`}`;
+    return `<div class="info-strip">ⓘ 首先根据当前的机型型号信息进行选择添加硬件类目，再选择硬件类目对应的硬件列表去配置，组成完整的机型硬件BOM物料清单；</div><div class="config-controls"><button class="btn btn-primary" data-action="config-category-add" ${disabledAttr}>＋ 添加类目</button><span>已配置 ${configured} 项</span><button class="btn btn-text" data-action="config-clear" ${disabledAttr}>全部清除</button></div>${state.configHardware.length ? state.configHardware.map((item, index) => `<div class="category-config-row"><strong>${escapeHtml(item.category)} <span style="color:#ed5b5b">*</span></strong><button class="choose-card ${item.model ? "selected" : ""}" data-action="config-choose" data-index="${index}" ${disabledAttr}>${item.model ? escapeHtml(item.model) : "请点击选择"} <span>›</span></button><div class="config-filter-panel"><h3>请选择　${escapeHtml(item.category)}<span style="color:#ed5b5b">*</span></h3><div class="searchbox"><input data-role="config-hardware-search" data-index="${index}" value="${escapeHtml(state.configHardwareSearch)}" placeholder="请输入型号名称，按enter搜索"></div><div class="inline-filter"><span>${escapeHtml(item.category)}类型：</span>${["不限", "CCD", "镜头板", "低功耗Wi-Fi", "常电WIFI", "灯板", "MINI", "AI_4G", "功能板", "低功耗4G", "主板"].map((value) => `<button class="btn btn-text ${state.configHardwareFilter === value ? "active-filter" : ""}" data-action="config-filter" data-filter="${value}">${value}</button>`).join("")}</div><div class="config-rule">ⓘ ${escapeHtml(item.category)}仅支持配置1个主板${escapeHtml(item.category)}</div>${configHardwareCards(item, index, editable)}</div><button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="hardware" data-index="${index}" ${disabledAttr}>移除类目</button></div>`).join("") : `<div class="empty-state">暂未添加硬件类目</div>`}`;
   }
   if (tab === "function") {
     const rows = state.configFunctions.map((binding, index) => {
@@ -2034,10 +2146,10 @@ function configTabContent(tab) {
     const requiredCount = rows.filter(({ item }) => item.requiredInFirmware).length;
     const testingRows = rows.filter(({ version }) => version?.status === "测试中");
     const unavailableRows = rows.filter(({ version }) => !version || !["测试中", "已发布"].includes(version.status));
-    return `<div class="info-strip config-function-guide"><strong>测试中版本可用于固件功能验证</strong><span>正式发布固件前，所选功能版本必须全部为已发布。</span></div>${testingRows.length ? `<div class="testing-strip config-function-warning"><strong>${testingRows.length} 项功能处于测试中</strong><span>${testingRows.map(({ item, version }) => `${escapeHtml(item.name)} ${version.label}`).join("、")}</span></div>` : ""}${unavailableRows.length ? `<div class="warning-strip config-function-warning"><strong>${unavailableRows.length} 项功能版本当前不可用</strong><span>${unavailableRows.map(({ item }) => escapeHtml(item.name)).join("、")}</span></div>` : ""}<div class="config-controls"><button class="btn btn-primary" data-action="config-function-add">＋ 添加可选功能</button><span>已配置 ${rows.length} 项 · 必配 ${requiredCount} 项</span></div><div class="data-table-wrap"><table class="mini-table config-function-table"><thead><tr><th>功能名称</th><th>配置要求</th><th>绑定版本</th><th>版本标识</th><th>版本状态</th><th>配置来源</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ item, version, binding, index }) => `<tr class="${!version || !["测试中", "已发布"].includes(version.status) ? "needs-attention" : version.status === "测试中" ? "testing-version" : ""}"><td><div class="config-function-name"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.category)}</small></div></td><td>${item.requiredInFirmware ? `<span class="function-policy-tag required">必配</span>` : `<span class="function-policy-tag optional">可选</span>`}</td><td>${version ? `<strong>${version.label}</strong>` : `<span class="config-version-empty">待选择</span>`}</td><td>${version ? functionVersionSignalTags(version) || "-" : "-"}</td><td>${version ? `${functionStatusTag(version.status)}${version.status === "测试中" ? `<small class="testing-version-note">仅用于测试</small>` : ""}` : `<span class="function-status pending">待配置</span>`}</td><td>${binding.source === "required-auto" ? `<span class="config-source-tag auto">系统带出</span>` : `<span class="config-source-tag">手工添加</span>`}</td><td><button class="btn btn-text" data-action="config-function-version" data-function="${item.id}">${version ? "更换版本" : "选择版本"}</button>${item.requiredInFirmware ? "" : `<button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="function" data-index="${index}">删除</button>`}</td></tr>`).join("") : `<tr><td colspan="7"><div class="empty-state">当前产品线暂无可配置功能</div></td></tr>`}</tbody></table></div>`;
+    return `<div class="info-strip config-function-guide"><strong>测试中版本可用于固件功能验证</strong><span>正式发布固件前，所选功能版本必须全部为已发布。</span></div>${testingRows.length ? `<div class="testing-strip config-function-warning"><strong>${testingRows.length} 项功能处于测试中</strong><span>${testingRows.map(({ item, version }) => `${escapeHtml(item.name)} ${version.label}`).join("、")}</span></div>` : ""}${unavailableRows.length ? `<div class="warning-strip config-function-warning"><strong>${unavailableRows.length} 项功能版本当前不可用</strong><span>${unavailableRows.map(({ item }) => escapeHtml(item.name)).join("、")}</span></div>` : ""}<div class="config-controls"><button class="btn btn-primary" data-action="config-function-add" ${disabledAttr}>＋ 添加可选功能</button><span>已配置 ${rows.length} 项 · 必配 ${requiredCount} 项</span></div><div class="data-table-wrap"><table class="mini-table config-function-table"><thead><tr><th>功能名称</th><th>配置要求</th><th>绑定版本</th><th>版本标识</th><th>版本状态</th><th>配置来源</th><th>操作</th></tr></thead><tbody>${rows.length ? rows.map(({ item, version, binding, index }) => `<tr class="${!version || !["测试中", "已发布"].includes(version.status) ? "needs-attention" : version.status === "测试中" ? "testing-version" : ""}"><td><div class="config-function-name"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.category)}</small></div></td><td>${item.requiredInFirmware ? `<span class="function-policy-tag required">必配</span>` : `<span class="function-policy-tag optional">可选</span>`}</td><td>${version ? `<strong>${version.label}</strong>` : `<span class="config-version-empty">待选择</span>`}</td><td>${version ? functionVersionSignalTags(version) || "-" : "-"}</td><td>${version ? `${functionStatusTag(version.status)}${version.status === "测试中" ? `<small class="testing-version-note">仅用于测试</small>` : ""}` : `<span class="function-status pending">待配置</span>`}</td><td>${binding.source === "required-auto" ? `<span class="config-source-tag auto">系统带出</span>` : `<span class="config-source-tag">手工添加</span>`}</td><td><button class="btn btn-text" data-action="config-function-version" data-function="${item.id}" ${disabledAttr}>${version ? "更换版本" : "选择版本"}</button>${item.requiredInFirmware ? "" : `<button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="function" data-index="${index}" ${disabledAttr}>删除</button>`}</td></tr>`).join("") : `<tr><td colspan="7"><div class="empty-state">当前产品线暂无可配置功能</div></td></tr>`}</tbody></table></div>`;
   }
-  if (tab === "parameter") return `<div class="info-strip">ⓘ 参数配置会随机型发布并用于设备能力描述。</div><div class="config-controls"><button class="btn btn-primary" data-action="config-param-add">＋ 添加参数</button><span>已配置 ${state.configParameters.length} 项</span></div><div class="data-table-wrap"><table class="mini-table"><thead><tr><th>参数名</th><th>中文名</th><th>参数类型</th><th>默认值</th><th>操作</th></tr></thead><tbody>${state.configParameters.length ? state.configParameters.map((item, index) => `<tr><td>${escapeHtml(item.key)}</td><td>${escapeHtml(item.label)}</td><td>${item.type}</td><td>${escapeHtml(item.defaultValue)}</td><td><button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="parameter" data-index="${index}">删除</button></td></tr>`).join("") : `<tr><td colspan="5"><div class="empty-state">暂无数据</div></td></tr>`}</tbody></table></div>`;
-  return `<div class="info-strip">ⓘ 配置生产测试项、等待时间和检测方式，用于出厂检测。</div><div class="config-controls"><button class="btn btn-primary" data-action="config-test-add">＋ 添加测试项</button><span>已配置 ${state.configTests.length} 项</span></div><div class="data-table-wrap"><table class="mini-table test-table"><thead><tr>${testColumns.map((title) => `<th>${title}</th>`).join("")}</tr></thead><tbody>${state.configTests.length ? state.configTests.map(configTestRow).join("") : `<tr><td colspan="${testColumns.length}"><div class="empty-state">暂无数据</div></td></tr>`}</tbody></table></div>`;
+  if (tab === "parameter") return `<div class="info-strip">ⓘ 参数配置会随机型发布并用于设备能力描述。</div><div class="config-controls"><button class="btn btn-primary" data-action="config-param-add" ${disabledAttr}>＋ 添加参数</button><span>已配置 ${state.configParameters.length} 项</span></div><div class="data-table-wrap"><table class="mini-table"><thead><tr><th>参数名</th><th>中文名</th><th>参数类型</th><th>默认值</th><th>操作</th></tr></thead><tbody>${state.configParameters.length ? state.configParameters.map((item, index) => `<tr><td>${escapeHtml(item.key)}</td><td>${escapeHtml(item.label)}</td><td>${item.type}</td><td>${escapeHtml(item.defaultValue)}</td><td>${editable ? `<button class="btn btn-text danger-text" data-action="config-row-delete" data-kind="parameter" data-index="${index}">删除</button>` : "-"}</td></tr>`).join("") : `<tr><td colspan="5"><div class="empty-state">暂无数据</div></td></tr>`}</tbody></table></div>`;
+  return `<div class="info-strip">ⓘ 配置生产测试项、等待时间和检测方式，用于出厂检测。</div><div class="config-controls"><button class="btn btn-primary" data-action="config-test-add" ${disabledAttr}>＋ 添加测试项</button><span>已配置 ${state.configTests.length} 项</span></div><div class="data-table-wrap"><table class="mini-table test-table"><thead><tr>${testColumns.map((title) => `<th>${title}</th>`).join("")}</tr></thead><tbody>${state.configTests.length ? state.configTests.map((row, index) => configTestRow(row, index, editable)).join("") : `<tr><td colspan="${testColumns.length}"><div class="empty-state">暂无数据</div></td></tr>`}</tbody></table></div>`;
 }
 
 function createModelDraft(kind = "property", row = null) {
@@ -2749,15 +2861,43 @@ function renderModal() {
     wide = true;
     body = `<div class="info-strip">${escapeHtml(machine.name)} · ${machine.line} · ${machine.status}${state.configSavedAt ? ` · 保存于 ${escapeHtml(formatDateTime(state.configSavedAt))}` : " · 尚未保存"}</div><table class="mini-table"><thead><tr><th>配置模块</th><th>已配置数量</th><th>状态</th></tr></thead><tbody>${["硬件配置", "功能配置", "参数配置", "测试项配置"].map((label, index) => `<tr><td>${label}</td><td>${counts[index]}</td><td>${counts[index] ? "已配置" : "待配置"}</td></tr>`).join("")}</tbody></table>`;
     footer = `<button class="btn btn-primary" data-action="modal-close">关闭预览</button>`;
+  } else if (modal.type === "machine-submit-test") {
+    const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
+    const config = activeMachineConfig(machine.id);
+    const hardwareReady = machineHardwareReady(machine.id);
+    const testingGaps = machineFunctionGaps(machine.id, ["测试中", "已发布"]);
+    title = "提交测试";
+    body = `<div class="confirm-copy">确认提交“${escapeHtml(machine.name)}”进入测试中吗？提交后配置将冻结，产测可调用该机型配置。</div><div class="release-checklist"><div><span>硬件配置</span><strong>${hardwareReady ? "已完成" : "待完善"}</strong></div><div><span>功能配置</span><strong>${testingGaps.length ? `${testingGaps.length} 项不可测试` : `${config.functions.length} 项可测试`}</strong></div></div>${testingGaps.length ? `<div class="warning-strip"><strong>存在不可测试的功能版本</strong><span>${testingGaps.map(({ item, version }) => `${escapeHtml(item.name)}${version ? `（${version.status}）` : "（未选择版本）"}`).join("、")}</span></div>` : `<div class="testing-strip"><strong>测试中将作为预发布配置</strong><span>调试不通过可撤回到开发中继续修改；历史调试记录保留。</span></div>`}`;
+    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm" ${hardwareReady && !testingGaps.length ? "" : "disabled"}>确认提交</button>`;
+  } else if (modal.type === "machine-withdraw-test") {
+    const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
+    title = "撤回测试";
+    body = `<div class="confirm-copy">确认撤回“${escapeHtml(machine.name)}”的测试中配置吗？</div><div class="warning-strip"><strong>撤回后回到开发中</strong><span>新的产测任务不可再调用该测试配置；已产生的产测记录和快照保留。</span></div>`;
+    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">确认撤回</button>`;
+  } else if (modal.type === "machine-start-edit") {
+    const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
+    const config = activeMachineConfig(machine.id);
+    title = "编辑配置";
+    body = `<div class="confirm-copy">确认基于“${escapeHtml(machine.name)}”当前发布配置发起新调整吗？</div><div class="info-strip"><strong>线上生效配置不会被覆盖</strong><span>${config.publishedSnapshot ? "系统将保留已发布快照，新调整进入开发中。" : "当前配置会先生成发布快照，再进入开发中。"}</span></div>`;
+    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm">开始调整</button>`;
+  } else if (modal.type === "machine-status") {
+    const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
+    const nextStatus = normalizeMachineStatus(modal.nextStatus);
+    title = nextStatus === "已停用" ? "停用机型" : "重新启用";
+    body = nextStatus === "已停用"
+      ? `<div class="confirm-copy">确认停用“${escapeHtml(machine.name)}”吗？</div><div class="warning-strip"><strong>停用后不再新增调用</strong><span>产测和固件发布不可再新增选择该机型；历史固件和产测记录保留。</span></div>`
+      : `<div class="confirm-copy">确认重新启用“${escapeHtml(machine.name)}”吗？</div><div class="info-strip"><strong>重新启用后进入开发中</strong><span>需要重新确认配置后再提交测试或发布。</span></div>`;
+    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn ${nextStatus === "已停用" ? "btn-danger" : "btn-primary"}" data-action="modal-confirm">${nextStatus === "已停用" ? "确认停用" : "确认启用"}</button>`;
   } else if (modal.type === "publish") {
     const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
     const config = activeMachineConfig(machine.id);
-    const releaseGaps = firmwareFunctionReleaseGaps(machine.id);
+    const hardwareReady = machineHardwareReady(machine.id);
+    const releaseGaps = machineFunctionGaps(machine.id, ["已发布"]);
     const testingGaps = releaseGaps.filter(({ version }) => version?.status === "测试中");
     const unavailableGaps = releaseGaps.filter(({ version }) => version?.status !== "测试中");
     title = "发布机型";
-    body = `<div class="confirm-copy">确认正式发布“${escapeHtml(machine.name)}”的当前配置吗？</div><div class="release-checklist"><div><span>硬件配置</span><strong>${config.hardware.length && config.hardware.every((item) => item.model) ? "已完成" : "待完善"}</strong></div><div><span>功能配置</span><strong>${releaseGaps.length ? `${releaseGaps.length} 项不可发布` : `${config.functions.length} 项已就绪`}</strong></div></div>${testingGaps.length ? `<div class="testing-strip"><strong>${testingGaps.length} 项功能仍在测试中</strong><span>${testingGaps.map(({ item, version }) => `${escapeHtml(item.name)} ${version.label}`).join("、")}；请先发布功能版本。</span></div>` : ""}${unavailableGaps.length ? `<div class="warning-strip"><strong>${unavailableGaps.length} 项功能版本不可用</strong><span>${unavailableGaps.map(({ item, version }) => `${escapeHtml(item.name)}${version ? ` ${version.label}（${version.status}）` : "（未选择版本）"}`).join("、")}</span></div>` : ""}${releaseGaps.length ? "" : `<div class="success-strip"><strong>功能版本均已发布</strong><span>当前配置可以正式发布。</span></div>`}`;
-    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm" ${releaseGaps.length ? "disabled" : ""}>确认发布</button>`;
+    body = `<div class="confirm-copy">确认正式发布“${escapeHtml(machine.name)}”的当前配置吗？</div><div class="release-checklist"><div><span>硬件配置</span><strong>${hardwareReady ? "已完成" : "待完善"}</strong></div><div><span>功能配置</span><strong>${releaseGaps.length ? `${releaseGaps.length} 项不可发布` : `${config.functions.length} 项已就绪`}</strong></div></div>${normalizeMachineStatus(machine.status) === "开发中" ? `<div class="warning-strip"><strong>当前仍处于开发中</strong><span>可跳过产测直接发布，但建议确认配置已完成验证。</span></div>` : ""}${testingGaps.length ? `<div class="testing-strip"><strong>${testingGaps.length} 项功能仍在测试中</strong><span>${testingGaps.map(({ item, version }) => `${escapeHtml(item.name)} ${version.label}`).join("、")}；请先发布功能版本。</span></div>` : ""}${unavailableGaps.length ? `<div class="warning-strip"><strong>${unavailableGaps.length} 项功能版本不可用</strong><span>${unavailableGaps.map(({ item, version }) => `${escapeHtml(item.name)}${version ? ` ${version.label}（${version.status}）` : "（未选择版本）"}`).join("、")}</span></div>` : ""}${releaseGaps.length || !hardwareReady ? "" : `<div class="success-strip"><strong>配置满足发布条件</strong><span>发布后状态变为已发布，并生成正式生效快照。</span></div>`}`;
+    footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-primary" data-action="modal-confirm" ${hardwareReady && !releaseGaps.length && normalizeMachineStatus(machine.status) !== "已停用" ? "" : "disabled"}>确认发布</button>`;
   } else if (modal.type === "config-category") {
     const availableCategories = ["PCBA", "镜头", "灯板", "电源板", "电池", "天线", "麦克风"].filter((category) => !state.configHardware.some((item) => item.category === category));
     title = "添加硬件类目";
@@ -2800,8 +2940,14 @@ function renderModal() {
     footer = `<button class="btn" data-action="modal-close">取消</button><button class="btn btn-danger" data-action="modal-confirm">确认清除</button>`;
   } else if (modal.type === "more") {
     const machine = machines.find((entry) => entry.id === modal.id) || machines[0];
+    const status = normalizeMachineStatus(machine.status);
+    const editInfo = status === "开发中" ? `<button class="btn" data-action="more-edit" data-id="${machine.id}">✎ 编辑机型信息</button>` : "";
+    const copyAction = `<button class="btn" data-action="more-copy" data-id="${machine.id}">▣ 复制机型</button>`;
+    const stopAction = status === "已停用"
+      ? `<button class="btn" data-action="machine-reactivate" data-id="${machine.id}">重新启用</button>`
+      : `<button class="btn btn-danger" data-action="machine-stop" data-id="${machine.id}">停用机型</button>`;
     title = "更多操作";
-    body = `<div class="more-actions"><button class="btn" data-action="more-edit" data-id="${machine.id}">✎ 编辑机型信息</button><button class="btn" data-action="more-copy" data-id="${machine.id}">▣ 复制机型</button><button class="btn ${machine.status === "已停产" ? "" : "btn-danger"}" data-action="more-stop" data-id="${machine.id}">${machine.status === "已停产" ? "恢复开发" : "停产机型"}</button></div>`;
+    body = `<div class="more-actions">${editInfo}${copyAction}${stopAction}</div>`;
     footer = `<button class="btn" data-action="modal-close">关闭</button>`;
   } else if (modal.type === "logs") {
     title = "操作日志";
@@ -2886,7 +3032,7 @@ function restorePersistentState() {
     if (!saved || !Number.isInteger(saved.version) || saved.version < 1 || saved.version > STORAGE_VERSION) return;
     const shouldMigrateDefinedFunctionsToDraft = saved.version < 4;
     const shouldMigrateModelSpecs = saved.version < STORAGE_VERSION;
-    if (Array.isArray(saved.machines)) machines.splice(0, machines.length, ...saved.machines);
+    if (Array.isArray(saved.machines)) machines.splice(0, machines.length, ...saved.machines.map((machine, index) => normalizeMachineRecord(machine, index)));
     for (const type of ["hardware", "pcba", "electronic"]) {
       const asset = saved.assets?.[type];
       if (Array.isArray(asset?.categories)) assetConfigs[type].categories.splice(0, assetConfigs[type].categories.length, ...asset.categories);
@@ -2916,6 +3062,7 @@ function restorePersistentState() {
     if (saved.modelSpecs && typeof saved.modelSpecs === "object") state.modelSpecs = saved.modelSpecs;
     if (saved.machineConfigs && typeof saved.machineConfigs === "object") state.machineConfigs = saved.machineConfigs;
     if (saved.categoryMeta && typeof saved.categoryMeta === "object") state.categoryMeta = saved.categoryMeta;
+    machines.forEach((machine, index) => Object.assign(machine, normalizeMachineRecord(machine, index)));
     for (const machine of machines) activeMachineConfig(machine.id);
     for (const type of ["hardware", "pcba", "electronic", "function"]) {
       const categories = type === "function" ? functionCategories : assetConfigs[type].categories;
@@ -3444,17 +3591,19 @@ function handleModalConfirm() {
     const arch = inputValue("modal-machine-arch") || "原架构";
     const description = inputValue("modal-machine-desc") || "-";
     if (!modal.id && !state.machineDraftImage) return showToast("请上传机型图片", "error", false);
+    const now = currentDateTime();
     if (modal.id) {
       const machine = machines.find((m) => m.id === modal.id);
+      if (!isMachineConfigEditable(machine)) return showToast("当前状态不可直接编辑机型信息", "error", false);
       const incompatibleBindings = activeMachineConfig(modal.id).functions.filter((binding) => {
         const functionId = typeof binding === "string" ? binding : binding.functionId;
         return functions.find((entry) => entry.id === functionId)?.productLine !== line;
       });
       if (machine?.line !== line && incompatibleBindings.length) return showToast(`该机型仍有 ${incompatibleBindings.length} 个原产品线功能，请先移除后再变更产品线`, "error", false);
-      Object.assign(machine, { name, network, power, line, arch, description, image: state.machineDraftImage || machine.image });
+      Object.assign(machine, { name, network, power, line, arch, description, image: state.machineDraftImage || machine.image, updatedAt: now });
     } else {
       const id = `m${Date.now()}`;
-      machines.unshift({ id, name, network, power, firmware: "-", image: state.machineDraftImage, status: "开发中", line, arch, description });
+      machines.unshift(normalizeMachineRecord({ id, name, network, power, firmware: "-", image: state.machineDraftImage, status: "开发中", line, arch, description, createdAt: now, updatedAt: now }));
       state.machineConfigs[id] = createMachineConfig();
     }
     state.machineDraftImage = "";
@@ -3463,6 +3612,7 @@ function handleModalConfirm() {
   }
   if (modal.type === "confirm-delete") {
     const index = machines.findIndex((m) => m.id === modal.id);
+    if (index >= 0 && normalizeMachineStatus(machines[index].status) !== "开发中") return showToast("只有开发中的机型可以删除", "error", false);
     if (index >= 0) machines.splice(index, 1);
     delete state.machineConfigs[modal.id];
     state.modal = null;
@@ -3867,21 +4017,78 @@ function handleModalConfirm() {
     state.modal = null;
     return showToast("参数模板已保存");
   }
+  if (modal.type === "machine-submit-test") {
+    const machine = machines.find((item) => item.id === modal.id);
+    if (!machine || normalizeMachineStatus(machine.status) !== "开发中") return showToast("只有开发中的机型可以提交测试", "error", false);
+    if (!machineHardwareReady(machine.id)) return showToast("请先完成所有硬件类目的型号配置", "error", false);
+    const testingGaps = machineFunctionGaps(machine.id, ["测试中", "已发布"]);
+    if (testingGaps.length) return showToast(`以下功能未选择可测试版本：${testingGaps.map(({ item }) => item.name).join("、")}`, "error", false);
+    const now = currentDateTime();
+    const config = activeMachineConfig(machine.id);
+    config.savedAt = config.savedAt || now;
+    config.testingAt = now;
+    config.testingSnapshot = machineSnapshot(machine.id);
+    machine.status = "测试中";
+    markMachineUpdated(machine, now);
+    state.modal = null;
+    return showToast("机型已提交测试，配置已冻结");
+  }
+  if (modal.type === "machine-withdraw-test") {
+    const machine = machines.find((item) => item.id === modal.id);
+    if (!machine || normalizeMachineStatus(machine.status) !== "测试中") return showToast("只有测试中的机型可以撤回", "error", false);
+    const now = currentDateTime();
+    const config = activeMachineConfig(machine.id);
+    config.withdrawnAt = now;
+    machine.status = "开发中";
+    markMachineUpdated(machine, now);
+    state.modal = null;
+    return showToast("已撤回测试，可继续修改配置");
+  }
+  if (modal.type === "machine-start-edit") {
+    const machine = machines.find((item) => item.id === modal.id);
+    if (!machine || normalizeMachineStatus(machine.status) !== "已发布") return showToast("只有已发布机型可以发起新调整", "error", false);
+    const now = currentDateTime();
+    const config = activeMachineConfig(machine.id);
+    config.publishedSnapshot = config.publishedSnapshot || machineSnapshot(machine.id);
+    machine.status = "开发中";
+    markMachineUpdated(machine, now);
+    state.modal = null;
+    navigate(`/machine/config/${machine.id}`);
+    return showToast("已进入开发中，当前发布配置已保留");
+  }
+  if (modal.type === "machine-status") {
+    const machine = machines.find((item) => item.id === modal.id);
+    if (!machine) return showToast("机型不存在", "error", false);
+    const nextStatus = normalizeMachineStatus(modal.nextStatus);
+    const now = currentDateTime();
+    const config = activeMachineConfig(machine.id);
+    machine.status = nextStatus;
+    markMachineUpdated(machine, now);
+    if (nextStatus === "已停用") config.disabledAt = now;
+    state.modal = null;
+    return showToast(nextStatus === "已停用" ? "机型已停用，历史记录保留" : "机型已重新启用");
+  }
   if (modal.type === "publish") {
     const machine = machines.find((item) => item.id === modal.id) || machines[0];
     const config = activeMachineConfig(modal.id);
+    if (normalizeMachineStatus(machine?.status) === "已停用") return showToast("已停用机型不能发布", "error", false);
     if (!config.hardware.length || config.hardware.some((item) => !item.model)) return showToast("请先完成所有硬件类目的型号配置", "error", false);
-    const releaseGaps = firmwareFunctionReleaseGaps(modal.id);
+    const releaseGaps = machineFunctionGaps(modal.id, ["已发布"]);
     const testingGaps = releaseGaps.filter(({ version }) => version?.status === "测试中");
     const unavailableGaps = releaseGaps.filter(({ version }) => version?.status !== "测试中");
     if (testingGaps.length) return showToast(`以下功能仍在测试中，暂不能正式发布：${testingGaps.map(({ item }) => item.name).join("、")}`, "error", false);
     if (unavailableGaps.length) return showToast(`以下功能未选择可发布版本：${unavailableGaps.map(({ item }) => item.name).join("、")}`, "error", false);
-    config.savedAt = config.savedAt || currentDateTime();
+    const now = currentDateTime();
+    config.savedAt = config.savedAt || now;
+    config.publishedAt = now;
+    config.publishedSnapshot = machineSnapshot(modal.id);
     if (machine) machine.status = "已发布";
+    markMachineUpdated(machine, now);
     state.modal = null;
     return showToast("机型已发布");
   }
   if (modal.type === "config-category") {
+    if (!ensureActiveMachineEditable()) return;
     const value = inputValue("modal-config-category");
     if (!value) return showToast("请选择硬件类目", "error", false);
     if (state.configHardware.some((item) => item.category === value)) return showToast("该硬件类目已存在", "error", false);
@@ -3891,6 +4098,7 @@ function handleModalConfirm() {
     return showToast("硬件类目已添加");
   }
   if (modal.type === "config-hardware-select") {
+    if (!ensureActiveMachineEditable()) return;
     const value = inputValue("modal-config-hardware");
     if (!value) return showToast("请选择硬件型号", "error", false);
     if (state.configHardware[modal.index]) state.configHardware[modal.index].model = value;
@@ -3899,6 +4107,7 @@ function handleModalConfirm() {
     return showToast("硬件型号已配置");
   }
   if (modal.type === "config-function") {
+    if (!ensureActiveMachineEditable()) return;
     const value = inputValue("modal-config-function");
     if (!value) return showToast("请选择功能版本", "error", false);
     const [functionId, versionId] = value.split("|");
@@ -3914,6 +4123,7 @@ function handleModalConfirm() {
     return showToast(version.status === "测试中" ? "测试版本已添加，可用于固件功能测试" : "功能版本已添加到机型");
   }
   if (modal.type === "config-function-version") {
+    if (!ensureActiveMachineEditable()) return;
     const item = functions.find((entry) => entry.id === modal.functionId);
     const versionId = inputValue("modal-config-function-version");
     const version = item?.versions.find((entry) => entry.id === versionId);
@@ -3926,6 +4136,7 @@ function handleModalConfirm() {
     return showToast(`${item.name} 已选择 ${version.label}${version.status === "测试中" ? "，仅用于固件测试" : ""}`);
   }
   if (modal.type === "config-parameter") {
+    if (!ensureActiveMachineEditable()) return;
     const key = inputValue("modal-config-param-key");
     const label = inputValue("modal-config-param-label");
     if (!key || !label) return showToast("请填写参数名和中文名", "error", false);
@@ -3936,6 +4147,7 @@ function handleModalConfirm() {
     return showToast("参数已添加");
   }
   if (modal.type === "config-test") {
+    if (!ensureActiveMachineEditable()) return;
     const key = inputValue("modal-config-test-key");
     const label = inputValue("modal-config-test-label");
     const expected = inputValue("modal-config-test-expected");
@@ -3951,6 +4163,7 @@ function handleModalConfirm() {
     return showToast("测试项已添加");
   }
   if (modal.type === "config-clear-confirm") {
+    if (!ensureActiveMachineEditable()) return;
     const key = { hardware: "hardware", function: "functions", parameter: "parameters", test: "tests" }[modal.scope];
     if (key) activeMachineConfig()[key] = [];
     state.configSavedAt = "";
@@ -3972,8 +4185,18 @@ document.addEventListener("click", (event) => {
   else if (action === "navigate") return navigate(target.dataset.route);
   else if (action === "machine-filter") { state.machineFilter[target.dataset.key] = target.dataset.value; state.machineFilter.page = 1; }
   else if (action === "machine-add") { state.machineDraftImage = ""; state.modal = { type: "machine-form" }; }
-  else if (action === "machine-edit") { state.machineDraftImage = ""; state.modal = { type: "machine-form", id: target.dataset.id }; }
+  else if (action === "machine-edit") {
+    const machine = machines.find((m) => m.id === target.dataset.id);
+    if (!isMachineConfigEditable(machine)) return showToast("当前状态不可直接编辑机型信息", "error", false);
+    state.machineDraftImage = "";
+    state.modal = { type: "machine-form", id: target.dataset.id };
+  }
   else if (action === "machine-config") return navigate(`/machine/config/${target.dataset.id}`);
+  else if (action === "machine-submit-test") state.modal = { type: "machine-submit-test", id: target.dataset.id };
+  else if (action === "machine-withdraw-test") state.modal = { type: "machine-withdraw-test", id: target.dataset.id };
+  else if (action === "machine-start-edit") state.modal = { type: "machine-start-edit", id: target.dataset.id };
+  else if (action === "machine-stop") state.modal = { type: "machine-status", id: target.dataset.id, nextStatus: "已停用" };
+  else if (action === "machine-reactivate") state.modal = { type: "machine-status", id: target.dataset.id, nextStatus: "开发中" };
   else if (action === "machine-delete") { const machine = machines.find((m) => m.id === target.dataset.id); state.modal = { type: "confirm-delete", id: target.dataset.id, name: machine?.name || "" }; }
   else if (action === "pagination-page") setPage(target.dataset.context, Number(target.dataset.page));
   else if (action === "pagination-prev") changePage(target.dataset.context, -1);
@@ -4612,19 +4835,21 @@ document.addEventListener("click", (event) => {
     return showToast("信息已保存");
   }
   else if (action === "config-tab") state.configTab = target.dataset.tab;
-  else if (action === "config-category-add") state.modal = { type: "config-category" };
-  else if (action === "config-choose") state.modal = { type: "config-hardware-select", index: Number(target.dataset.index) };
+  else if (action === "config-category-add") { if (!ensureActiveMachineEditable()) return; state.modal = { type: "config-category" }; }
+  else if (action === "config-choose") { if (!ensureActiveMachineEditable()) return; state.modal = { type: "config-hardware-select", index: Number(target.dataset.index) }; }
   else if (action === "config-hardware-pick") {
+    if (!ensureActiveMachineEditable()) return;
     const row = state.configHardware[Number(target.dataset.index)];
     if (row) row.model = row.model === target.dataset.model ? "" : target.dataset.model;
     state.configSavedAt = "";
     return showToast(row?.model ? "硬件型号已配置" : "硬件型号已取消");
   }
-  else if (action === "config-function-add") state.modal = { type: "config-function" };
-  else if (action === "config-function-version") state.modal = { type: "config-function-version", functionId: target.dataset.function };
-  else if (action === "config-param-add") state.modal = { type: "config-parameter" };
-  else if (action === "config-test-add") state.modal = { type: "config-test" };
+  else if (action === "config-function-add") { if (!ensureActiveMachineEditable()) return; state.modal = { type: "config-function" }; }
+  else if (action === "config-function-version") { if (!ensureActiveMachineEditable()) return; state.modal = { type: "config-function-version", functionId: target.dataset.function }; }
+  else if (action === "config-param-add") { if (!ensureActiveMachineEditable()) return; state.modal = { type: "config-parameter" }; }
+  else if (action === "config-test-add") { if (!ensureActiveMachineEditable()) return; state.modal = { type: "config-test" }; }
   else if (action === "config-row-delete") {
+    if (!ensureActiveMachineEditable()) return;
     const map = { hardware: "configHardware", function: "configFunctions", parameter: "configParameters", test: "configTests" };
     if (target.dataset.kind === "function") {
       const binding = state.configFunctions[Number(target.dataset.index)];
@@ -4637,31 +4862,42 @@ document.addEventListener("click", (event) => {
     return showToast("配置项已删除");
   }
   else if (action === "config-filter") { state.configHardwareFilter = target.dataset.filter; return showToast(`已筛选：${target.dataset.filter}`); }
-  else if (action === "config-clear") state.modal = { type: "config-clear-confirm", scope: state.configTab };
-  else if (action === "config-save") { state.configSavedAt = currentDateTime(); return showToast("配置已保存"); }
+  else if (action === "config-clear") {
+    if (!ensureActiveMachineEditable()) return;
+    state.modal = { type: "config-clear-confirm", scope: state.configTab };
+  }
+  else if (action === "config-save") {
+    if (!ensureActiveMachineEditable()) return;
+    const now = currentDateTime();
+    state.configSavedAt = now;
+    markMachineUpdated(machines.find((entry) => entry.id === activeMachineId()), now);
+    return showToast("配置已保存");
+  }
   else if (action === "config-preview") state.modal = { type: "config-preview" };
-  else if (action === "publish-machine") state.modal = { type: "publish", id: route().split("/")[3] || machines[0]?.id };
+  else if (action === "publish-machine") state.modal = { type: "publish", id: target.dataset.id || route().split("/")[3] || machines[0]?.id };
   else if (action === "logs-open") state.modal = { type: "logs" };
   else if (action === "more-open") state.modal = { type: "more", id: target.dataset.id };
-  else if (action === "more-edit") { state.machineDraftImage = ""; state.modal = { type: "machine-form", id: target.dataset.id }; }
+  else if (action === "more-edit") {
+    const machine = machines.find((item) => item.id === target.dataset.id);
+    if (!isMachineConfigEditable(machine)) return showToast("当前状态不可直接编辑机型信息", "error", false);
+    state.machineDraftImage = "";
+    state.modal = { type: "machine-form", id: target.dataset.id };
+  }
   else if (action === "more-copy") {
     const source = machines.find((item) => item.id === target.dataset.id);
     if (source) {
-      const copy = { ...source, id: `m${Date.now()}`, name: `${source.name}-副本`, status: "开发中" };
+      const copy = normalizeMachineRecord({ ...source, id: `m${Date.now()}`, name: `${source.name}-副本`, status: "开发中", createdAt: currentDateTime(), updatedAt: currentDateTime() });
       machines.unshift(copy);
       state.machineConfigs[copy.id] = JSON.parse(JSON.stringify(activeMachineConfig(source.id)));
       state.machineConfigs[copy.id].savedAt = "";
+      state.machineConfigs[copy.id].testingSnapshot = null;
+      state.machineConfigs[copy.id].publishedSnapshot = null;
       state.modal = null;
       navigate(`/machine/config/${copy.id}`);
       return showToast("机型副本已创建");
     }
   }
-  else if (action === "more-stop") {
-    const machine = machines.find((item) => item.id === target.dataset.id);
-    if (machine) machine.status = machine.status === "已停产" ? "开发中" : "已停产";
-    state.modal = null;
-    return showToast(`机型状态已变更为${machine?.status || "最新状态"}`);
-  }
+  else if (action === "more-stop") state.modal = { type: "machine-status", id: target.dataset.id, nextStatus: "已停用" };
   render();
 });
 

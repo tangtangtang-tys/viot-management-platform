@@ -268,6 +268,12 @@ textarea:focus-visible {
   gap: 12px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .page-body {
   min-width: 0;
   min-height: 0;
@@ -458,6 +464,26 @@ textarea:focus-visible {
   background: linear-gradient(135deg, transparent 15px, #fff7ef 16px);
   text-align: right;
   font-size: 12px;
+}
+
+.status-ribbon.draft {
+  color: #2871d3;
+  background: linear-gradient(135deg, transparent 15px, #eef6ff 16px);
+}
+
+.status-ribbon.testing {
+  color: #b06618;
+  background: linear-gradient(135deg, transparent 15px, #fff7eb 16px);
+}
+
+.status-ribbon.published {
+  color: #24875a;
+  background: linear-gradient(135deg, transparent 15px, #edf9f3 16px);
+}
+
+.status-ribbon.disabled {
+  color: #8a4b4b;
+  background: linear-gradient(135deg, transparent 15px, #fff2f2 16px);
 }
 
 .machine-card-head {
@@ -4219,6 +4245,90 @@ textarea:focus-visible {
   margin: 0 24px;
 }
 
+.machine-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 24px 12px;
+}
+
+.machine-flow-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid #e2e7ee;
+  border-radius: 6px;
+  color: #697381;
+  background: #f8fafc;
+}
+
+.machine-flow-step span {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #7b8490;
+  background: #e8edf3;
+  font-size: 12px;
+}
+
+.machine-flow-step.active {
+  color: #1f6fd7;
+  border-color: #97c2f7;
+  background: #f2f8ff;
+  font-weight: 600;
+}
+
+.machine-flow-step.active span {
+  color: #fff;
+  background: #2b78e9;
+}
+
+.machine-flow-step.done {
+  color: #287052;
+  border-color: #bee0cf;
+  background: #f2fbf6;
+}
+
+.machine-flow-step.done span {
+  color: #fff;
+  background: #35a46e;
+}
+
+.config-lock-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 24px 12px;
+  padding: 10px 14px;
+  border: 1px solid #dde5ef;
+  color: #4f5966;
+  background: #f7f9fc;
+}
+
+.config-lock-strip.testing {
+  border-color: #efc58f;
+  color: #8b591a;
+  background: #fff7eb;
+}
+
+.config-lock-strip.published {
+  border-color: #9bd7bb;
+  color: #276849;
+  background: #edf9f3;
+}
+
+.config-lock-strip.disabled {
+  border-color: #e3b5b5;
+  color: #8a4b4b;
+  background: #fff2f2;
+}
+
 .config-tabs {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -5734,6 +5844,10 @@ textarea:focus-visible {
     overflow-x: auto;
   }
 
+  .header-actions {
+    flex-wrap: wrap;
+  }
+
   .page-heading-actions > .btn {
     flex: 1 0 auto;
   }
@@ -5780,6 +5894,10 @@ textarea:focus-visible {
   }
 
   .machine-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .machine-flow {
     grid-template-columns: 1fr;
   }
 
